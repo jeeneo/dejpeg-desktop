@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeJPEG desktop</title>
+    <link rel="stylesheet" href="fonts/material-icons.css">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --primary-light: #818cf8;
+            --secondary: #f1f5f9;
+            --background: #0f172a;
+            --surface: #1e293b;
+            --surface-light: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --text-muted: #64748b;
+            --success: #10b981;
+            --error: #ef4444;
+            --warning: #f59e0b;
+            --border: #374151;
+            --shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            --gradient: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: var(--background);
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        .main-container {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        }
+
+        .navbar {
+            padding: 1rem 2rem;
+            background: rgba(30, 41, 59, 0.8);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .navbar h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: var(--gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 2rem;
+            min-height: calc(100vh - 80px);
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .card {
+            background: var(--surface);
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 32px 64px -12px rgba(0, 0, 0, 0.25);
+        }
+
+        .card-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border);
+            background: linear-gradient(135deg, var(--surface-light) 0%, var(--surface) 100%);
+        }
+
+        .card-header h2 {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .card-content {
+            padding: 1.5rem;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            margin-bottom: 1rem;
+        }
+
+        .file-input {
+            position: absolute;
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .file-input-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            background: var(--surface-light);
+            border: 2px dashed var(--border);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .file-input-label:hover {
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--primary-light);
+        }
+
+        .file-input-label.has-file {
+            border-color: var(--success);
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+        }
+
+        .button {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            background: var(--gradient);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            font-size: 0.875rem;
+        }
+
+        .button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 20px rgba(99, 102, 241, 0.3);
+        }
+
+        .button:active {
+            transform: translateY(0);
+        }
+
+        .button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .button.secondary {
+            background: var(--surface-light);
+            color: var(--text-primary);
+        }
+
+        .button.success {
+            background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+        }
+
+        .slider-container {
+            margin: 1.5rem 0;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .slider-value {
+            color: var(--primary-light);
+            font-weight: 600;
+        }
+
+        .slider {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: var(--surface-light);
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--gradient);
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(99, 102, 241, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .slider::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 12px rgba(99, 102, 241, 0.4);
+        }
+
+        .slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--gradient);
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 4px 8px rgba(99, 102, 241, 0.3);
+        }
+
+        .status-indicator {
+            padding: 0.75rem;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-top: 1rem;
+        }
+
+        .status-indicator.success {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .status-indicator.error {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        .status-indicator.loading {
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--primary-light);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid transparent;
+            border-top: 2px solid currentColor;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .main-content {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .comparison-container {
+            position: relative;
+            width: 100%;
+            height: 600px;
+            background: var(--surface);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+        }
+
+        .comparison-image {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            object-position: center;
+            pointer-events: none;
+            image-rendering: pixelated;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
+            transform-origin: center center;
+        }
+
+        .comparison-slider {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: linear-gradient(to bottom, var(--primary), var(--primary-light));
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            cursor: ew-resize;
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.5);
+        }
+
+        .comparison-slider::before {
+            content: '';
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: white;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .comparison-slider:hover::before {
+            transform: translate(-50%, -50%) scale(1.1);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+        }
+
+        .comparison-slider::after {
+            content: '⟷';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: var(--surface);
+            font-size: 16px;
+            font-weight: bold;
+            z-index: 1;
+        }
+
+        .image-label {
+            position: absolute;
+            padding: 0.5rem 1rem;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            color: white;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            z-index: 5;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        #beforeLabel {
+            top: 1rem;
+            left: 1rem;
+        }
+
+        #afterLabel {
+            top: 1rem;
+            right: 1rem;
+        }
+
+        .zoom-controls {
+            position: absolute;
+            bottom: 1rem;
+            right: 1rem;
+            display: flex;
+            gap: 0.5rem;
+            z-index: 5;
+        }
+
+        .zoom-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            color: white;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            font-size: 18px;
+        }
+
+        .zoom-btn:hover {
+            background: rgba(99, 102, 241, 0.8);
+            transform: scale(1.1);
+        }
+
+        .placeholder-content {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 4rem 2rem;
+        }
+
+        .placeholder-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        .result-actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+            padding: 1.5rem;
+            background: var(--surface);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+        }
+
+        .filename-input {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            background: var(--surface-light);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            border: 1px solid var(--border);
+            outline: none;
+            transition: all 0.3s ease;
+        }
+        
+        .filename-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3);
+        }
+
+        .cancel-btn {
+            margin-left: auto;
+            background: none;
+            border: none;
+            color: var(--primary-light);
+            cursor: pointer;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        @media (max-width: 1024px) {
+            .container {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+                padding: 1rem;
+            }
+
+            .navbar {
+                padding: 1rem;
+            }
+
+            .comparison-container {
+                height: 400px;
+            }
+        }
+
+        /* Smooth animations */
+        .fade-in {
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .slide-in {
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <nav class="navbar">
+            <h1>De<i>JPEG</i> desktop</h1>
+        </nav>
+
+        <div class="container">
+            <aside class="sidebar">
+                <!-- Model Loading Card -->
+                <div class="card slide-in">
+                    <div class="card-header">
+                        <h2>
+                            <span class="material-icons-round">memory</span>
+                            model
+                        </h2>
+                    </div>
+                    <div class="card-content">
+                        <div class="file-input-wrapper">
+                            <input type="file" id="modelFile" class="file-input" accept=".onnx">
+                            <label for="modelFile" class="file-input-label" id="modelLabel">
+                                <span class="material-icons-round">cloud_upload</span>
+                                choose ONNX model
+                            </label>
+                        </div>
+                        <button class="button" onclick="loadModel()" id="loadModelBtn">
+                            <span class="material-icons-round">play_arrow</span>
+                            load model
+                        </button>
+                        <div id="modelStatus"></div>
+                    </div>
+                </div>
+
+                <div class="card slide-in" style="animation-delay: 0.1s;">
+                    <div class="card-header">
+                        <h2>
+                            <span class="material-icons-round">image</span>
+                            processing
+                        </h2>
+                    </div>
+                    <div class="card-content">
+                        <div class="file-input-wrapper">
+                            <input type="file" id="imageFile" class="file-input" accept="image/*">
+                            <label for="imageFile" class="file-input-label" id="imageLabel">
+                                <span class="material-icons-round">add_photo_alternate</span>
+                                pick image
+                            </label>
+                        </div>
+
+                        <div class="slider-container" style="display: none;">
+                            <div class="slider-label">
+                                <span>FBCNN strength</span>
+                                <span class="slider-value" id="strengthValue">50%</span>
+                            </div>
+                            <input type="range" id="strength" class="slider" min="0" max="100" value="50">
+                        </div>
+
+                        <button class="button" onclick="processImage()" id="processBtn" disabled>
+                            <span class="material-icons-round">auto_fix_high</span>
+                            process image
+                        </button>
+                        <div id="processingIndicator"></div>
+                    </div>
+                </div>
+            </aside>
+
+            <main class="main-content">
+                <!-- Comparison Viewer -->
+                <div class="comparison-container" id="comparisonContainer">
+                    <div id="beforeLabel" class="image-label" style="display: none;">before</div>
+                    <div id="afterLabel" class="image-label" style="display: none;">after</div>
+                    <img id="beforeImage" class="comparison-image" style="display: none;" draggable="false">
+                    <img id="afterImage" class="comparison-image" style="display: none;" draggable="false">
+                    <div class="comparison-slider" id="comparisonSlider" style="display: none;"></div>
+                    
+                    <div class="zoom-controls" id="zoomControls" style="display: none;">
+                        <button class="zoom-btn" id="zoomOut" title="Zoom Out">
+                            <span class="material-icons-round">zoom_out</span>
+                        </button>
+                        <button class="zoom-btn" id="resetZoom" title="Reset Zoom">
+                            <span class="material-icons-round">center_focus_strong</span>
+                        </button>
+                        <button class="zoom-btn" id="zoomIn" title="Zoom In">
+                            <span class="material-icons-round">zoom_in</span>
+                        </button>
+                    </div>
+                    
+                    <div class="placeholder-content" id="placeholderContent">
+                        <div class="placeholder-icon">🖼️</div>
+                        <h3>images will show up here</h3>
+                        <p>load a model and select an image to get started</p>
+                    </div>
+                </div>
+
+                <!-- Result Actions -->
+                <div class="result-actions" id="resultActions" style="display: none;">
+                    <input type="text" id="filenameInput" class="filename-input" placeholder="Enter filename">
+                    <button id="downloadBtn" class="button success">
+                        <span class="material-icons-round">download</span>
+                        save
+                    </button>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        // Application State
+        const AppState = {
+            currentModel: null,
+            currentDownloadName: '',
+            currentProcessedImageUrl: null,
+            isDragging: false,
+            zoomLevel: 1,
+            panOffset: { x: 0, y: 0 },
+            lastPanPoint: { x: 0, y: 0 },
+            abortController: null
+        };
+
+        // DOM Elements
+        const elements = {
+            modelFile: document.getElementById('modelFile'),
+            modelLabel: document.getElementById('modelLabel'),
+            loadModelBtn: document.getElementById('loadModelBtn'),
+            modelStatus: document.getElementById('modelStatus'),
+            imageFile: document.getElementById('imageFile'),
+            imageLabel: document.getElementById('imageLabel'),
+            strength: document.getElementById('strength'),
+            strengthValue: document.getElementById('strengthValue'),
+            processBtn: document.getElementById('processBtn'),
+            processingIndicator: document.getElementById('processingIndicator'),
+            comparisonContainer: document.getElementById('comparisonContainer'),
+            beforeImage: document.getElementById('beforeImage'),
+            afterImage: document.getElementById('afterImage'),
+            comparisonSlider: document.getElementById('comparisonSlider'),
+            beforeLabel: document.getElementById('beforeLabel'),
+            afterLabel: document.getElementById('afterLabel'),
+            placeholderContent: document.getElementById('placeholderContent'),
+            zoomControls: document.getElementById('zoomControls'),
+            zoomIn: document.getElementById('zoomIn'),
+            zoomOut: document.getElementById('zoomOut'),
+            resetZoom: document.getElementById('resetZoom'),
+            resultActions: document.getElementById('resultActions'),
+            filenameInput: document.getElementById('filenameInput'),
+            downloadBtn: document.getElementById('downloadBtn')
+        };
+
+        // Utility Functions
+        const showStatus = (elementId, message, type = 'info') => {
+            const element = document.getElementById(elementId);
+            element.className = `status-indicator ${type}`;
+            
+            if (type === 'loading') {
+                element.innerHTML = `
+                    <div class="spinner"></div>
+                    <span>${message}</span>
+                `;
+            } else {
+                element.innerHTML = message;
+            }
+            
+            element.style.display = 'block';
+            element.classList.add('fade-in');
+        };
+
+        const hideStatus = (elementId) => {
+            const element = document.getElementById(elementId);
+            element.style.display = 'none';
+        };
+
+        const updateFileLabel = (labelElement, fileName, hasFile) => {
+            const iconSpan = labelElement.querySelector('.material-icons-round');
+            const textNode = labelElement.childNodes[2] || labelElement.appendChild(document.createTextNode(''));
+            
+            if (hasFile) {
+                labelElement.classList.add('has-file');
+                iconSpan.textContent = 'check_circle';
+                textNode.textContent = fileName;
+            } else {
+                labelElement.classList.remove('has-file');
+                iconSpan.textContent = labelElement.id === 'modelLabel' ? 'cloud_upload' : 'add_photo_alternate';
+                textNode.textContent = labelElement.id === 'modelLabel' ? 'Choose ONNX Model' : 'Choose Image';
+            }
+        };
+
+        // Model Management
+        const loadModel = async () => {
+            if (!elements.modelFile.files.length) {
+                showStatus('modelStatus', 'Please select a model file first', 'error');
+                return;
+            }
+
+            const file = elements.modelFile.files[0];
+            const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
+            
+            // Check file size limits
+            if (file.size > 2 * 1024 * 1024 * 1024) { // 2GB
+                showStatus('modelStatus', `Model file too large: ${fileSizeMB}MB (max: 2GB)`, 'error');
+                return;
+            }
+            
+            showStatus('modelStatus', `Loading model (${fileSizeMB}MB)... This may take a while for large models.`, 'loading');
+            elements.loadModelBtn.disabled = true;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/api/load_model', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                
+                if (result.error) {
+                    showStatus('modelStatus', result.error, 'error');
+                } else {
+                    AppState.currentModel = result.model;
+                    showStatus('modelStatus', result.message, 'success');
+                    updateProcessButtonState();
+
+                    const sliderSection = document.querySelector('.slider-container');
+                    if (AppState.currentModel.startsWith('fbcnn_')) {
+                        sliderSection.style.display = 'block';
+                    } else {
+                        sliderSection.style.display = 'none';
+                    }
+                }
+            } catch (error) {
+                showStatus('modelStatus', `Error loading model: ${error.message}`, 'error');
+            } finally {
+                elements.loadModelBtn.disabled = false;
+            }
+        };
+
+        // Image Processing
+        const processImage = async () => {
+            if (!elements.imageFile.files.length || !AppState.currentModel) return;
+
+            // Create new AbortController
+            AppState.abortController = new AbortController();
+
+            // Show processing state
+            elements.beforeImage.style.display = 'none';
+            elements.afterImage.style.display = 'none';
+            elements.comparisonSlider.style.display = 'none';
+            elements.beforeLabel.style.display = 'none';
+            elements.afterLabel.style.display = 'none';
+            elements.zoomControls.style.display = 'none';
+            elements.resultActions.style.display = 'none';
+
+            const file = elements.imageFile.files[0];
+            let fileSize;
+            if (file.size < 1024 * 1024) {
+                fileSize = (file.size / 1024).toFixed(1) + 'KB';
+            } else {
+                fileSize = (file.size / (1024 * 1024)).toFixed(1) + 'MB';
+            }            
+            // Show processing indicator
+            elements.placeholderContent.innerHTML = `
+                <div class="status-indicator loading" style="display: inline-flex; margin: 0; background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.2);">
+                    <div class="spinner"></div>
+                    <span>processing image (${fileSize})...</span>
+                    <button class="cancel-btn" id="cancelProcessing">
+                        <span class="material-icons-round">close</span>
+                        Cancel
+                    </button>
+                </div>
+            `;
+            elements.placeholderContent.style.display = 'block';
+            elements.processBtn.disabled = true;
+
+            const strength = elements.strength.value / 100;
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('strength', strength);
+            formData.append('originalFilename', file.name);
+            formData.append('model', AppState.currentModel);
+
+            // Add cancel button handler
+            document.getElementById('cancelProcessing').addEventListener('click', async () => {
+                if (AppState.abortController) {
+                    AppState.abortController.abort();
+                    try {
+                        await fetch('/api/abort', { method: 'POST' });
+                    } catch (e) {
+                        console.error('Error sending abort request:', e);
+                    }
+                    showStatus('processingIndicator', 'Processing cancelled', 'error');
+                    elements.placeholderContent.style.display = 'none';
+                    elements.processBtn.disabled = false;
+                }
+            });
+
+            try {
+                const response = await fetch('/api/process', {
+                    method: 'POST',
+                    body: formData,
+                    signal: AppState.abortController.signal
+                });
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    AppState.currentProcessedImageUrl = URL.createObjectURL(blob);
+                    const originalUrl = URL.createObjectURL(file);
+                    
+                    await displayComparison(originalUrl, AppState.currentProcessedImageUrl);
+                    
+                    // Update download filename - always use .png
+                    const originalName = file.name;
+                    const baseName = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
+                    AppState.currentDownloadName = `${baseName}_${AppState.currentModel}.png`;
+                    
+                    elements.filenameInput.value = AppState.currentDownloadName;
+                    elements.resultActions.style.display = 'flex';
+                    elements.resultActions.classList.add('fade-in');
+                    
+                    hideStatus('processingIndicator');
+                } else {
+                    const error = await response.json();
+                    showStatus('processingIndicator', error.error, 'error');
+                }
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    showStatus('processingIndicator', 'Processing cancelled', 'error');
+                } else {
+                    showStatus('processingIndicator', `Error processing image: ${error.message}`, 'error');
+                }
+            } finally {
+                AppState.abortController = null;
+                elements.processBtn.disabled = false;
+            }
+        };
+
+        // Image Comparison Display
+        const displayComparison = async (beforeUrl, afterUrl) => {
+            return new Promise((resolve) => {
+                let loadedCount = 0;
+                const onImageLoad = () => {
+                    loadedCount++;
+                    if (loadedCount === 2) {
+                        showComparisonElements();
+                        resetZoomAndPan();
+                        resolve();
+                    }
+                };
+
+                elements.beforeImage.onload = onImageLoad;
+                elements.afterImage.onload = onImageLoad;
+                
+                elements.beforeImage.src = beforeUrl;
+                elements.afterImage.src = afterUrl;
+            });
+        };
+
+        const showComparisonElements = () => {
+            elements.placeholderContent.style.display = 'none';
+            elements.beforeImage.style.display = 'block';
+            elements.afterImage.style.display = 'block';
+            elements.comparisonSlider.style.display = 'block';
+            elements.beforeLabel.style.display = 'block';
+            elements.afterLabel.style.display = 'block';
+            elements.zoomControls.style.display = 'flex';
+            
+            // Reset slider position to center with after on left, before on right
+            elements.comparisonSlider.style.left = '50%';
+            elements.afterImage.style.clipPath = 'inset(0 0 0 50%)';
+        };
+
+        const updateSliderPosition = (clientX) => {
+            const rect = elements.comparisonContainer.getBoundingClientRect();
+            const containerX = clientX - rect.left;
+            
+            // Calculate percentage based on container coordinates
+            const containerPercent = Math.min(Math.max((containerX / rect.width) * 100, 0), 100);
+            
+            // Update slider position
+            elements.comparisonSlider.style.left = `${containerPercent}%`;
+            
+            // Calculate image position accounting for zoom/pan
+            const imgRect = elements.beforeImage.getBoundingClientRect();
+            const imgX = (clientX - imgRect.left) / AppState.zoomLevel;
+            const imgWidth = imgRect.width / AppState.zoomLevel;
+            const percent = Math.min(Math.max((imgX / imgWidth) * 100, 0), 100);
+            
+            // Show after image on left side of slider
+            elements.afterImage.style.clipPath = `inset(0 0 0 ${percent}%)`;
+        };
+
+        const resetZoomAndPan = () => {
+            AppState.zoomLevel = 1;
+            AppState.panOffset = { x: 0, y: 0 };
+            updateImageTransform();
+        };
+
+        const updateImageTransform = () => {
+            const transform = `scale(${AppState.zoomLevel}) translate(${AppState.panOffset.x}px, ${AppState.panOffset.y}px)`;
+            elements.beforeImage.style.transform = transform;
+            elements.afterImage.style.transform = transform;
+            
+            // Update slider position to maintain relative position
+            if (!AppState.isDragging) {
+                const rect = elements.comparisonContainer.getBoundingClientRect();
+                const currentPercent = parseFloat(elements.comparisonSlider.style.left) || 50;
+                const newX = rect.width * (currentPercent / 100);
+                updateSliderPosition(rect.left + newX);
+            }
+        };
+
+        const zoomIn = () => {
+            AppState.zoomLevel = Math.min(AppState.zoomLevel * 1.2, 5);
+            updateImageTransform();
+        };
+
+        const zoomOut = () => {
+            AppState.zoomLevel = Math.max(AppState.zoomLevel / 1.2, 0.1);
+            updateImageTransform();
+        };
+
+        const updateProcessButtonState = () => {
+            const hasModel = AppState.currentModel !== null;
+            const hasImage = elements.imageFile.files.length > 0;
+            elements.processBtn.disabled = !hasModel || !hasImage;
+        };
+
+        // Event Listeners
+        elements.modelFile.addEventListener('change', (e) => {
+            const fileName = e.target.files[0]?.name || '';
+            updateFileLabel(elements.modelLabel, fileName, !!fileName);
+            hideStatus('modelStatus');
+        });
+
+        elements.imageFile.addEventListener('change', (e) => {
+            if (AppState.abortController && AppState.abortController.signal.aborted === false) {
+                showStatus('processingIndicator', 'Please wait for current processing to complete or cancel it first', 'error');
+                e.target.value = ''; // Clear the file input
+                return;
+            }
+
+            const fileName = e.target.files[0]?.name || '';
+            updateFileLabel(elements.imageLabel, fileName, !!fileName);
+            updateProcessButtonState();
+
+            if (e.target.files.length) {
+                // Show preview of selected image
+                const url = URL.createObjectURL(e.target.files[0]);
+                elements.beforeImage.src = url;
+                elements.beforeImage.style.display = 'block';
+                elements.afterImage.style.display = 'none';
+                elements.comparisonSlider.style.display = 'none';
+                elements.beforeLabel.style.display = 'block';
+                elements.afterLabel.style.display = 'none';
+                elements.zoomControls.style.display = 'flex';
+                elements.placeholderContent.style.display = 'none';
+                resetZoomAndPan();
+            }
+        });
+
+        elements.strength.addEventListener('input', (e) => {
+            elements.strengthValue.textContent = `${e.target.value}%`;
+        });
+
+        // Comparison slider events
+        elements.comparisonContainer.addEventListener('mousedown', (e) => {
+            if (elements.comparisonSlider.style.display === 'none') return;
+            
+            // Only handle slider if clicking near it
+            const sliderRect = elements.comparisonSlider.getBoundingClientRect();
+            const isNearSlider = Math.abs(e.clientX - sliderRect.left) < 20;
+
+            if (e.button === 0 && isNearSlider) { // Left click near slider
+                AppState.isDragging = true;
+                updateSliderPosition(e.clientX);
+                e.preventDefault();
+                e.stopPropagation();
+            } else if (e.button === 0) { // Left click anywhere else for panning
+                AppState.lastPanPoint = { x: e.clientX, y: e.clientY };
+                elements.comparisonContainer.style.cursor = 'grabbing';
+                e.preventDefault();
+            }
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (AppState.isDragging) {
+                updateSliderPosition(e.clientX);
+                e.preventDefault();
+            } else if (AppState.lastPanPoint.x !== 0) {
+                // Handle panning
+                const deltaX = e.clientX - AppState.lastPanPoint.x;
+                const deltaY = e.clientY - AppState.lastPanPoint.y;
+                
+                AppState.panOffset.x += deltaX / AppState.zoomLevel;
+                AppState.panOffset.y += deltaY / AppState.zoomLevel;
+                
+                updateImageTransform();
+                
+                AppState.lastPanPoint = { x: e.clientX, y: e.clientY };
+                e.preventDefault();
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            AppState.isDragging = false;
+            if (AppState.lastPanPoint.x !== 0) {
+                AppState.lastPanPoint = { x: 0, y: 0 };
+                elements.comparisonContainer.style.cursor = 'default';
+            }
+        });
+
+        // Zoom controls
+        elements.zoomIn.addEventListener('click', zoomIn);
+        elements.zoomOut.addEventListener('click', zoomOut);
+        elements.resetZoom.addEventListener('click', resetZoomAndPan);
+
+        // Mouse wheel zoom
+        elements.comparisonContainer.addEventListener('wheel', (e) => {
+            if (elements.beforeImage.style.display === 'none') return;
+            
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? -1 : 1;
+            const zoomFactor = 1.1;
+            
+            if (delta > 0) {
+                AppState.zoomLevel = Math.min(AppState.zoomLevel * zoomFactor, 5);
+            } else {
+                AppState.zoomLevel = Math.max(AppState.zoomLevel / zoomFactor, 0.1);
+            }
+            
+            updateImageTransform();
+        });
+
+        // Pan functionality
+        elements.comparisonContainer.addEventListener('mousedown', (e) => {
+            if (e.button !== 1 && !e.ctrlKey && !e.shiftKey) return;
+            if (elements.beforeImage.style.display === 'none') return;
+            
+            AppState.lastPanPoint = { x: e.clientX, y: e.clientY };
+            elements.comparisonContainer.style.cursor = 'grabbing';
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (AppState.isDragging) {
+                updateSliderPosition(e.clientX);
+                e.preventDefault();
+            } else if (AppState.lastPanPoint.x !== 0) {
+                // Handle panning
+                const deltaX = e.clientX - AppState.lastPanPoint.x;
+                const deltaY = e.clientY - AppState.lastPanPoint.y;
+                
+                AppState.panOffset.x += deltaX / AppState.zoomLevel;
+                AppState.panOffset.y += deltaY / AppState.zoomLevel;
+                
+                updateImageTransform();
+                
+                AppState.lastPanPoint = { x: e.clientX, y: e.clientY };
+            }
+        });
+
+        document.addEventListener('mouseup', (e) => {
+            AppState.isDragging = false;
+            if (AppState.lastPanPoint.x !== 0) {
+                AppState.lastPanPoint = { x: 0, y: 0 };
+                elements.comparisonContainer.style.cursor = 'default';
+            }
+        });
+
+        // Download functionality
+        elements.downloadBtn.addEventListener('click', () => {
+            if (!AppState.currentProcessedImageUrl) return;
+            
+            let filename = elements.filenameInput.value.trim();
+            if (!filename) filename = AppState.currentDownloadName;
+            
+            // Ensure filename ends with .png
+            if (!filename.toLowerCase().endsWith('.png')) {
+                filename += '.png';
+            }
+            
+            const a = document.createElement('a');
+            a.href = AppState.currentProcessedImageUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (elements.beforeImage.style.display === 'none') return;
+            
+            switch(e.key) {
+                case '=':
+                case '+':
+                    zoomIn();
+                    e.preventDefault();
+                    break;
+                case '-':
+                    zoomOut();
+                    e.preventDefault();
+                    break;
+                case '0':
+                    resetZoomAndPan();
+                    e.preventDefault();
+                    break;
+            }
+        });
+
+        // Initialize
+        updateProcessButtonState();
+        
+        // Add some nice loading animations
+        document.addEventListener('DOMContentLoaded', () => {
+            const cards = document.querySelectorAll('.card');
+            cards.forEach((card, index) => {
+                card.style.animationDelay = `${index * 0.1}s`;
+            });
+            
+            // Initialize strength value display
+            elements.strengthValue.textContent = `${elements.strength.value}%`;
+        });
+    </script>
+</body>
+</html>
