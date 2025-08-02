@@ -4,521 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DeJPEG desktop</title>
-    <link rel="stylesheet" href="fonts/material-icons.css">
-    <style>
-        :root {
-            --primary: #6366f1;
-            --primary-dark: #4f46e5;
-            --primary-light: #818cf8;
-            --secondary: #f1f5f9;
-            --background: #0f172a;
-            --surface: #1e293b;
-            --surface-light: #334155;
-            --text-primary: #f8fafc;
-            --text-secondary: #cbd5e1;
-            --text-muted: #64748b;
-            --success: #10b981;
-            --error: #ef4444;
-            --warning: #f59e0b;
-            --border: #374151;
-            --shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-            --gradient: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: var(--background);
-            color: var(--text-primary);
-            line-height: 1.6;
-            overflow-x: hidden;
-        }
-
-        .main-container {
-            min-height: 100vh;
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-        }
-
-        .navbar {
-            padding: 1rem 2rem;
-            background: rgba(30, 41, 59, 0.8);
-            backdrop-filter: blur(10px);
-            border-bottom: 1px solid var(--border);
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-
-        .navbar h1 {
-            font-size: 1.5rem;
-            font-weight: 700;
-            background: var(--gradient);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 2rem;
-            display: grid;
-            grid-template-columns: 350px 1fr;
-            gap: 2rem;
-            min-height: calc(100vh - 80px);
-        }
-
-        .sidebar {
-            display: flex;
-            flex-direction: column;
-            gap: 1.5rem;
-        }
-
-        .card {
-            background: var(--surface);
-            border-radius: 16px;
-            box-shadow: var(--shadow);
-            border: 1px solid var(--border);
-            overflow: hidden;
-            transition: all 0.3s ease;
-        }
-
-        .card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 32px 64px -12px rgba(0, 0, 0, 0.25);
-        }
-
-        .card-header {
-            padding: 1.5rem;
-            border-bottom: 1px solid var(--border);
-            background: linear-gradient(135deg, var(--surface-light) 0%, var(--surface) 100%);
-        }
-
-        .card-header h2 {
-            font-size: 1.125rem;
-            font-weight: 600;
-            color: var(--text-primary);
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .card-content {
-            padding: 1.5rem;
-        }
-
-        .file-input-wrapper {
-            position: relative;
-            margin-bottom: 1rem;
-        }
-
-        .file-input {
-            position: absolute;
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-
-        .file-input-label {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            padding: 0.75rem 1rem;
-            background: var(--surface-light);
-            border: 2px dashed var(--border);
-            border-radius: 12px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            color: var(--text-secondary);
-            font-weight: 500;
-        }
-
-        .file-input-label:hover {
-            border-color: var(--primary);
-            background: rgba(99, 102, 241, 0.1);
-            color: var(--primary-light);
-        }
-
-        .file-input-label.has-file {
-            border-color: var(--success);
-            background: rgba(16, 185, 129, 0.1);
-            color: var(--success);
-        }
-
-        .button {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.75rem 1.5rem;
-            background: var(--gradient);
-            color: white;
-            border: none;
-            border-radius: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            font-size: 0.875rem;
-        }
-
-        .button:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 10px 20px rgba(99, 102, 241, 0.3);
-        }
-
-        .button:active {
-            transform: translateY(0);
-        }
-
-        .button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .button.secondary {
-            background: var(--surface-light);
-            color: var(--text-primary);
-        }
-
-        .button.success {
-            background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
-        }
-
-        .slider-container {
-            margin: 1.5rem 0;
-        }
-
-        .slider-label {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 0.75rem;
-            color: var(--text-secondary);
-            font-weight: 500;
-        }
-
-        .slider-value {
-            color: var(--primary-light);
-            font-weight: 600;
-        }
-
-        .slider {
-            width: 100%;
-            height: 6px;
-            border-radius: 3px;
-            background: var(--surface-light);
-            outline: none;
-            -webkit-appearance: none;
-            appearance: none;
-        }
-
-        .slider::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background: var(--gradient);
-            cursor: pointer;
-            box-shadow: 0 4px 8px rgba(99, 102, 241, 0.3);
-            transition: all 0.3s ease;
-        }
-
-        .slider::-webkit-slider-thumb:hover {
-            transform: scale(1.1);
-            box-shadow: 0 6px 12px rgba(99, 102, 241, 0.4);
-        }
-
-        .slider::-moz-range-thumb {
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background: var(--gradient);
-            cursor: pointer;
-            border: none;
-            box-shadow: 0 4px 8px rgba(99, 102, 241, 0.3);
-        }
-
-        .status-indicator {
-            padding: 0.75rem;
-            border-radius: 8px;
-            font-size: 0.875rem;
-            font-weight: 500;
-            margin-top: 1rem;
-        }
-
-        .status-indicator.success {
-            background: rgba(16, 185, 129, 0.1);
-            color: var(--success);
-            border: 1px solid rgba(16, 185, 129, 0.2);
-        }
-
-        .status-indicator.error {
-            background: rgba(239, 68, 68, 0.1);
-            color: var(--error);
-            border: 1px solid rgba(239, 68, 68, 0.2);
-        }
-
-        .status-indicator.loading {
-            background: rgba(99, 102, 241, 0.1);
-            color: var(--primary-light);
-            border: 1px solid rgba(99, 102, 241, 0.2);
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .spinner {
-            width: 16px;
-            height: 16px;
-            border: 2px solid transparent;
-            border-top: 2px solid currentColor;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        .main-content {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .comparison-container {
-            position: relative;
-            width: 100%;
-            height: 600px;
-            background: var(--surface);
-            border-radius: 16px;
-            overflow: hidden;
-            box-shadow: var(--shadow);
-            border: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            user-select: none;
-        }
-
-        .comparison-image {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            object-position: center;
-            pointer-events: none;
-            image-rendering: pixelated;
-            image-rendering: -moz-crisp-edges;
-            image-rendering: crisp-edges;
-            transform-origin: center center;
-        }
-
-        .comparison-slider {
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            width: 3px;
-            background: linear-gradient(to bottom, var(--primary), var(--primary-light));
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 10;
-            cursor: ew-resize;
-            box-shadow: 0 0 20px rgba(99, 102, 241, 0.5);
-        }
-
-        .comparison-slider::before {
-            content: '';
-            position: absolute;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: white;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-            transition: all 0.3s ease;
-        }
-
-        .comparison-slider:hover::before {
-            transform: translate(-50%, -50%) scale(1.1);
-            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
-        }
-
-        .comparison-slider::after {
-            content: '⟷';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: var(--surface);
-            font-size: 16px;
-            font-weight: bold;
-            z-index: 1;
-        }
-
-        .image-label {
-            position: absolute;
-            padding: 0.5rem 1rem;
-            background: rgba(0, 0, 0, 0.8);
-            backdrop-filter: blur(10px);
-            color: white;
-            border-radius: 8px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            z-index: 5;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
-        }
-
-        #beforeLabel {
-            top: 1rem;
-            left: 1rem;
-        }
-
-        #afterLabel {
-            top: 1rem;
-            right: 1rem;
-        }
-
-        .zoom-controls {
-            position: absolute;
-            bottom: 1rem;
-            right: 1rem;
-            display: flex;
-            gap: 0.5rem;
-            z-index: 5;
-        }
-
-        .zoom-btn {
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            background: rgba(0, 0, 0, 0.8);
-            backdrop-filter: blur(10px);
-            color: white;
-            border: none;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.3s ease;
-            font-size: 18px;
-        }
-
-        .zoom-btn:hover {
-            background: rgba(99, 102, 241, 0.8);
-            transform: scale(1.1);
-        }
-
-        .placeholder-content {
-            text-align: center;
-            color: var(--text-muted);
-            padding: 4rem 2rem;
-        }
-
-        .placeholder-icon {
-            font-size: 4rem;
-            margin-bottom: 1rem;
-            opacity: 0.5;
-        }
-
-        .result-actions {
-            display: flex;
-            gap: 1rem;
-            margin-top: 1.5rem;
-            padding: 1.5rem;
-            background: var(--surface);
-            border-radius: 16px;
-            border: 1px solid var(--border);
-        }
-
-        .filename-input {
-            flex: 1;
-            padding: 0.75rem 1rem;
-            background: var(--surface-light);
-            border-radius: 8px;
-            color: var(--text-primary);
-            font-size: 0.875rem;
-            border: 1px solid var(--border);
-            outline: none;
-            transition: all 0.3s ease;
-        }
-        
-        .filename-input:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3);
-        }
-
-        .cancel-btn {
-            margin-left: auto;
-            background: none;
-            border: none;
-            color: var(--primary-light);
-            cursor: pointer;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 0.25rem;
-        }
-
-        @media (max-width: 1024px) {
-            .container {
-                grid-template-columns: 1fr;
-                gap: 1rem;
-                padding: 1rem;
-            }
-
-            .navbar {
-                padding: 1rem;
-            }
-
-            .comparison-container {
-                height: 400px;
-            }
-        }
-
-        /* Smooth animations */
-        .fade-in {
-            animation: fadeIn 0.5s ease-out;
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .slide-in {
-            animation: slideIn 0.3s ease-out;
-        }
-
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateX(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateX(0);
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="/static/fonts/material-icons.css">
+    <link rel="stylesheet" href="/static/web/stylesheet.css">
 </head>
 <body>
     <div class="main-container">
@@ -635,7 +122,8 @@
             zoomLevel: 1,
             panOffset: { x: 0, y: 0 },
             lastPanPoint: { x: 0, y: 0 },
-            abortController: null
+            abortController: null,
+            jobId: null
         };
 
         // DOM Elements
@@ -707,7 +195,7 @@
         // Model Management
         const loadModel = async () => {
             if (!elements.modelFile.files.length) {
-                showStatus('modelStatus', 'Please select a model file first', 'error');
+                showStatus('modelStatus', 'please select a model file first', 'error');
                 return;
             }
 
@@ -716,11 +204,11 @@
             
             // Check file size limits
             if (file.size > 2 * 1024 * 1024 * 1024) { // 2GB
-                showStatus('modelStatus', `Model file too large: ${fileSizeMB}MB (max: 2GB)`, 'error');
+                showStatus('modelStatus', `model is too large: ${fileSizeMB}MB (max: 2GB)`, 'error');
                 return;
             }
-            
-            showStatus('modelStatus', `Loading model (${fileSizeMB}MB)... This may take a while for large models.`, 'loading');
+
+            showStatus('modelStatus', `loading model (${fileSizeMB}MB)... may take a while.`, 'loading');
             elements.loadModelBtn.disabled = true;
 
             const formData = new FormData();
@@ -749,7 +237,7 @@
                     }
                 }
             } catch (error) {
-                showStatus('modelStatus', `Error loading model: ${error.message}`, 'error');
+                showStatus('modelStatus', `error loading model: ${error.message}`, 'error');
             } finally {
                 elements.loadModelBtn.disabled = false;
             }
@@ -759,8 +247,8 @@
         const processImage = async () => {
             if (!elements.imageFile.files.length || !AppState.currentModel) return;
 
-            // Create new AbortController
             AppState.abortController = new AbortController();
+            AppState.jobId = null;
 
             // Show processing state
             elements.beforeImage.style.display = 'none';
@@ -780,13 +268,9 @@
             }            
             // Show processing indicator
             elements.placeholderContent.innerHTML = `
-                <div class="status-indicator loading" style="display: inline-flex; margin: 0; background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.2);">
+                <div class="status-indicator loading" style="display: inline-flex; margin: 0; background: rgba(189, 189, 189, 0.08); border: 1px solid rgba(189, 189, 189, 0.18);">
                     <div class="spinner"></div>
                     <span>processing image (${fileSize})...</span>
-                    <button class="cancel-btn" id="cancelProcessing">
-                        <span class="material-icons-round">close</span>
-                        Cancel
-                    </button>
                 </div>
             `;
             elements.placeholderContent.style.display = 'block';
@@ -800,21 +284,6 @@
             formData.append('originalFilename', file.name);
             formData.append('model', AppState.currentModel);
 
-            // Add cancel button handler
-            document.getElementById('cancelProcessing').addEventListener('click', async () => {
-                if (AppState.abortController) {
-                    AppState.abortController.abort();
-                    try {
-                        await fetch('/api/abort', { method: 'POST' });
-                    } catch (e) {
-                        console.error('Error sending abort request:', e);
-                    }
-                    showStatus('processingIndicator', 'Processing cancelled', 'error');
-                    elements.placeholderContent.style.display = 'none';
-                    elements.processBtn.disabled = false;
-                }
-            });
-
             try {
                 const response = await fetch('/api/process', {
                     method: 'POST',
@@ -822,11 +291,14 @@
                     signal: AppState.abortController.signal
                 });
 
+                // Get jobId from header if present
+                const jobId = response.headers.get('X-Job-Id');
+                if (jobId) AppState.jobId = jobId;
+
                 if (response.ok) {
                     const blob = await response.blob();
                     AppState.currentProcessedImageUrl = URL.createObjectURL(blob);
                     const originalUrl = URL.createObjectURL(file);
-                    
                     await displayComparison(originalUrl, AppState.currentProcessedImageUrl);
                     
                     // Update download filename - always use .png
@@ -851,6 +323,7 @@
                 }
             } finally {
                 AppState.abortController = null;
+                AppState.jobId = null;
                 elements.processBtn.disabled = false;
             }
         };

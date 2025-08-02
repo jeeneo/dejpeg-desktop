@@ -1,14 +1,29 @@
 # dejpeg-desktop
 another onnx gui in NodeJS
 
-beta version of a desktop DeJPEG, only fbcnn_color tested, don't file issues right away
+beta version of DeJPEG for desktops (yet another ONNX gui)
 
-no windows builds, only linux for now
+(no windows builds yet)
 
 preq:
-`npm install express cors multer sharp@0.32.6`
-`npm install --save-dev nodemon @types/express @types/cors @types/multer @types/node`
+```
+npm install express cors multer sharp@0.32.6
+```
 
-copy `src/static` to `dist` before building (i'm not nodejs dev so bear with me)
+```
+npm install --save-dev nodemon @types/express @types/cors @types/multer @types/node
+```
 
-`pkg . --target node18-linux-x64 --output dejpeg-node`
+then
+
+```
+npm run build && npm start
+```
+
+for building into single executable:
+
+linux:
+
+```
+pkg . --target node18-linux-x64 --output dejpeg-node
+```
