@@ -46,6 +46,9 @@ body {
     position: sticky;
     top: 0;
     z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 1rem; /* Add space between title and button */
 }
 
 .navbar h1 {
@@ -55,6 +58,7 @@ body {
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+    margin-right: auto; /* Prevent h1 from stretching */
 }
 
 .container {
@@ -465,6 +469,13 @@ body {
     display: flex;
     align-items: center;
     gap: 0.25rem;
+}
+
+#exitBtn {
+    /* Remove float and left margin, add right margin for spacing */
+    margin-left: 1rem !important;
+    margin-right: 0 !important;
+    float: none !important;
 }
 
 @media (max-width: 1024px) {

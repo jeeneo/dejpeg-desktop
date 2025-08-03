@@ -1,7 +1,7 @@
 {
-  "name": "dejpeg-server",
-  "version": "1.0.0",
-  "description": "DeJPEG Image Processing Server",
+  "name": "dejpeg-desktop",
+  "version": "1.0.1",
+  "description": "DeJPEG desktop",
   "main": "app.js",
   "scripts": {
     "start": "node dist/app.js",
