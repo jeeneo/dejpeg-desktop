@@ -689,10 +689,19 @@ class ImageProcessor {
 
 const processor = new ImageProcessor();
 
+// was a linux thing but now i guess 'exit' for everyone
+// const IS_LINUX = process.platform === 'linux';
+
 // Routes
 app.get('/', (req, res) => {
   const indexPath = path.join(__dirname, 'static', 'web', 'index.html');
-  res.sendFile(indexPath);
+  let html = fs.readFileSync(indexPath, 'utf8');
+  // Inject window.isLinux
+  // html = html.replace(
+  //   '</head>',
+  //   `<script>window.isLinux=${IS_LINUX};</script>\n</head>`
+  // );
+  res.send(html);
 });
 
 app.get('/api/health', (req, res) => {
@@ -801,6 +810,15 @@ app.get('/api/status', (req, res) => {
   });
 });
 
+app.post('/api/exit', (req, res) => {
+  // if (IS_LINUX) {
+    res.json({ status: 'exiting' });
+    setTimeout(() => process.exit(0), 100);
+  // } else {
+  //   res.status(403).json({ error: 'Exit not needed on this platform, close the command window instead' });
+  // }
+});
+
 // Error handling middleware
 app.use((err: any, req: any, res: any, next: any) => {
   console.error(err.stack);
@@ -809,7 +827,16 @@ app.use((err: any, req: any, res: any, next: any) => {
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`DeJPEG running at http://0.0.0.0:${PORT}`);
+
+  const url = `http://localhost:${PORT}`;
+  const { exec } = require('child_process');
+
   if (process.platform === 'linux') {
-    require('child_process').exec(`xdg-open http://localhost:${PORT}`);
+    exec(`xdg-open ${url}`);
+  } else if (process.platform === 'win32') {
+    exec(`start ${url}`);
   }
+  // else if (process.platform === 'darwin') { // macOS untested - uncomment if needed
+  //   exec(`open ${url}`);
+  // }
 });

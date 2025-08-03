@@ -11,6 +11,10 @@
     <div class="main-container">
         <nav class="navbar">
             <h1>De<i>JPEG</i> desktop</h1>
+            <button id="exitBtn" class="button secondary" style="display:none; float:right; margin-left:2rem;">
+                <span class="material-icons-round">logout</span>
+                exit
+            </button>
         </nav>
 
         <div class="container">
@@ -601,6 +605,21 @@
                     break;
             }
         });
+
+        // if (window.isLinux) {
+            document.getElementById('exitBtn').style.display = 'inline-flex';
+            document.getElementById('exitBtn').addEventListener('click', async () => {
+                const exitBtn = document.getElementById('exitBtn');
+                exitBtn.disabled = true;
+                
+                // Set a fixed width to prevent layout shift
+                exitBtn.style.width = exitBtn.offsetWidth + 'px';
+                exitBtn.innerHTML = '<span class="material-icons-round">logout</span>...';
+                
+                await fetch('/api/exit', { method: 'POST' });
+                setTimeout(() => window.close(), 500);
+            });
+        // }
 
         // Initialize
         updateProcessButtonState();
