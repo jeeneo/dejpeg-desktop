@@ -1,6 +1,6 @@
 # dejpeg-desktop
 
-beta version of DeJPEG for desktops (yet another ONNX gui)
+beta version of DeJPEG for desktops (an ONNX gui that ISN'T electron)
 
 prebuilt binaries available under `Releases` or build below
 
