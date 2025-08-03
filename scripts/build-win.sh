@@ -28,7 +28,11 @@ rm -rf builds/win-build/node_modules/onnxruntime-node/bin/napi-v6/linux
 
 rm -rf builds/win-build/node_modules/onnxruntime-node/bin/napi-v6/win32/arm64
 
-7z a -t7z -mx=9 builds/dejpeg-win.7z ./builds/win-build
-rm -rf builds/win-build
+if command -v 7z >/dev/null 2>&1; then
+  7z a -t7z -mx=9 builds/dejpeg-win.7z ./builds/win-build
+  rm -rf builds/win-build
+else
+  echo "NOTE: 7z is not installed, skipping compression"
+fi
 
 echo "build complete: dejpeg-win.7z"

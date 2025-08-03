@@ -30,7 +30,11 @@ rm -rf builds/linux-build/node_modules/onnxruntime-node/bin/napi-v6/linux/arm64
 rm builds/linux-build/node_modules/onnxruntime-node/bin/napi-v6/linux/x64/libonnxruntime_providers_cuda.so
 rm builds/linux-build/node_modules/onnxruntime-node/bin/napi-v6/linux/x64/*.bak
 
-7z a -t7z -mx=9 builds/dejpeg-linux.7z ./builds/linux-build
-rm -rf builds/linux-build
+if command -v 7z >/dev/null 2>&1; then
+  7z a -t7z -mx=9 builds/dejpeg-linux.7z ./builds/linux-build
+  rm -rf builds/linux-build
+else
+  echo "NOTE: 7z is not installed, skipping compression"
+fi
 
 echo "build complete: dejpeg-linux"
