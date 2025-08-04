@@ -24,22 +24,17 @@ npm run build && npm start
 
 then `npm run build` or manually copy `src/static` to `dist` if on windows
 
-## Windows
+# building
 
-for windows, run `pkg . --target node18-win-x64 --output dejpeg-windows`, and copy both:
+## Windows system
 
-```
-node_modules/onnxruntime-node
-node_modules/sharp
-```
+`pkg . --target node18-win-x64 --output dejpeg-windows.exe`
 
-to wherever you run alongside the exe
-
-# Linux
+# Linux system
 
 rename `node_modules` to `node_modules_linux` (or if you have a windows version of `node_modules`, it should be `node_modules_windows`) then run `npm run build-linux` (or `npm run build-win` for windows)
 
-this will copy, compile, and zip the build (if 7z exists)
+this will compile and zip the build (if 7z exists)
 
 more info below why
 
