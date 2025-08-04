@@ -367,6 +367,19 @@
             elements.afterImage.style.clipPath = 'inset(0 0 0 50%)';
         };
 
+        // --- ADDED: Show zoom controls and enable pan/zoom for before image preview ---
+        const showBeforeImagePreview = () => {
+            elements.beforeImage.style.display = 'block';
+            elements.afterImage.style.display = 'none';
+            elements.comparisonSlider.style.display = 'none';
+            elements.beforeLabel.style.display = 'block';
+            elements.afterLabel.style.display = 'none';
+            elements.zoomControls.style.display = 'flex';
+            elements.placeholderContent.style.display = 'none';
+            resetZoomAndPan();
+        };
+        // ------------------------------------------------------------------------------
+
         const updateSliderPosition = (clientX) => {
             const rect = elements.comparisonContainer.getBoundingClientRect();
             const containerX = clientX - rect.left;
@@ -398,10 +411,21 @@
             elements.beforeImage.style.transform = transform;
             elements.afterImage.style.transform = transform;
             
-            // Update slider position to maintain relative position
-            if (!AppState.isDragging) {
+            // Always update slider position to maintain relative position, even while dragging
+            if (elements.comparisonSlider.style.display !== 'none') {
                 const rect = elements.comparisonContainer.getBoundingClientRect();
-                const currentPercent = parseFloat(elements.comparisonSlider.style.left) || 50;
+                const currentLeft = elements.comparisonSlider.style.left;
+                let currentPercent;
+                
+                if (currentLeft === '' || currentLeft === undefined) {
+                    currentPercent = 50; // Default to center only if no position is set
+                } else {
+                    currentPercent = parseFloat(currentLeft);
+                    if (isNaN(currentPercent)) {
+                        currentPercent = 50;
+                    }
+                }
+                
                 const newX = rect.width * (currentPercent / 100);
                 updateSliderPosition(rect.left + newX);
             }
@@ -445,14 +469,8 @@
                 // Show preview of selected image
                 const url = URL.createObjectURL(e.target.files[0]);
                 elements.beforeImage.src = url;
-                elements.beforeImage.style.display = 'block';
-                elements.afterImage.style.display = 'none';
-                elements.comparisonSlider.style.display = 'none';
-                elements.beforeLabel.style.display = 'block';
-                elements.afterLabel.style.display = 'none';
-                elements.zoomControls.style.display = 'flex';
-                elements.placeholderContent.style.display = 'none';
-                resetZoomAndPan();
+                // --- CHANGED: Use new function to show preview with pan/zoom enabled ---
+                showBeforeImagePreview();
             }
         });
 
@@ -462,11 +480,12 @@
 
         // Comparison slider events
         elements.comparisonContainer.addEventListener('mousedown', (e) => {
-            if (elements.comparisonSlider.style.display === 'none') return;
-            
-            // Only handle slider if clicking near it
+            if (elements.beforeImage.style.display === 'none') return;
+
+            // Only handle slider if clicking near it and slider is visible
             const sliderRect = elements.comparisonSlider.getBoundingClientRect();
-            const isNearSlider = Math.abs(e.clientX - sliderRect.left) < 20;
+            const isSliderVisible = elements.comparisonSlider.style.display !== 'none';
+            const isNearSlider = isSliderVisible && Math.abs(e.clientX - sliderRect.left) < 20;
 
             if (e.button === 0 && isNearSlider) { // Left click near slider
                 AppState.isDragging = true;
@@ -531,6 +550,7 @@
 
         // Pan functionality
         elements.comparisonContainer.addEventListener('mousedown', (e) => {
+            // --- CHANGED: Allow panning if beforeImage is visible, regardless of afterImage ---
             if (e.button !== 1 && !e.ctrlKey && !e.shiftKey) return;
             if (elements.beforeImage.style.display === 'none') return;
             

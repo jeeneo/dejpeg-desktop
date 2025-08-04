@@ -6,14 +6,10 @@ prebuilt binaries available under `Releases` or build below
 
 preq:
 
-`nodejs` v22
+nodejs 18 or newer
 
 ```bash
-npm install express cors multer pkg sharp@0.32.6
-```
-
-```bash
-npm install --save-dev nodemon @types/express @types/cors @types/multer @types/node
+npm install express cors multer pkg sharp@0.32.6 nodemon @types/express @types/cors @types/multer @types/node onnxruntime-node@latest
 ```
 
 then
