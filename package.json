@@ -31,7 +31,9 @@
   "bin": "dist/app.js",
   "pkg": {
     "assets": [
-      "dist/static/**/**/*"
+      "dist/**/*",
+      "node_modules/onnxruntime-node/**/*",
+      "node_modules/sharp/**/*"
     ],
     "scripts": []
   }

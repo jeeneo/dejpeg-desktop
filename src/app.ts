@@ -6,6 +6,7 @@ import fs from 'fs';
 import { InferenceSession, Tensor } from 'onnxruntime-node';
 import sharp from 'sharp';
 import { randomUUID } from 'crypto';
+// import { extractNodeModules, cleanupNodeModules } from './extract';
 
 const app = express();
 const PORT = 5567;
@@ -688,6 +689,7 @@ class ImageProcessor {
 }
 
 const processor = new ImageProcessor();
+// extractNodeModules();
 
 // was a linux thing but now i guess 'exit' for everyone
 // const IS_LINUX = process.platform === 'linux';
@@ -811,12 +813,9 @@ app.get('/api/status', (req, res) => {
 });
 
 app.post('/api/exit', (req, res) => {
-  // if (IS_LINUX) {
-    res.json({ status: 'exiting' });
-    setTimeout(() => process.exit(0), 100);
-  // } else {
-  //   res.status(403).json({ error: 'Exit not needed on this platform, close the command window instead' });
-  // }
+  res.json({ status: 'exiting' });
+  // cleanupNodeModules();
+  setTimeout(() => process.exit(0), 100);
 });
 
 // Error handling middleware

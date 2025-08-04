@@ -13,26 +13,21 @@ rm -rf dist
 
 mv node_modules_linux node_modules
 
+[ -d node_modules/onnxruntime-node/bin/napi-v6/darwin ] && rm -rf node_modules/onnxruntime-node/bin/napi-v6/darwin
+[ -d node_modules/onnxruntime-node/bin/napi-v6/win32 ] && rm -rf node_modules/onnxruntime-node/bin/napi-v6/win32
+[ -d node_modules/onnxruntime-node/bin/napi-v6/linux/arm64 ] && rm -rf node_modules/onnxruntime-node/bin/napi-v6/linux/arm64
+[ -f node_modules/onnxruntime-node/bin/napi-v6/linux/x64/libonnxruntime_providers_cuda.so ] && rm node_modules/onnxruntime-node/bin/napi-v6/linux/x64/libonnxruntime_providers_cuda.so # comment out to keep CUDA
+[ -n "$(ls node_modules/onnxruntime-node/bin/napi-v6/linux/x64/*.bak 2>/dev/null)" ] && rm node_modules/onnxruntime-node/bin/napi-v6/linux/x64/*.bak
+
 tsc
 cp -r src/static dist
-pkg . --target node18-linux-x64 --output builds/linux-build/dejpeg-linux
+pkg . --target node18-linux-x64 --output builds/dejpeg-linux
 
 mv node_modules node_modules_linux
 
-mkdir -p builds/linux-build/node_modules
-cp -r node_modules_linux/onnxruntime-node builds/linux-build/node_modules
-cp -r node_modules_linux/sharp builds/linux-build/node_modules
-
-rm -rf builds/linux-build/node_modules/onnxruntime-node/bin/napi-v6/darwin
-rm -rf builds/linux-build/node_modules/onnxruntime-node/bin/napi-v6/win32
-
-rm -rf builds/linux-build/node_modules/onnxruntime-node/bin/napi-v6/linux/arm64
-rm builds/linux-build/node_modules/onnxruntime-node/bin/napi-v6/linux/x64/libonnxruntime_providers_cuda.so
-rm builds/linux-build/node_modules/onnxruntime-node/bin/napi-v6/linux/x64/*.bak
-
 if command -v 7z >/dev/null 2>&1; then
-  7z a -t7z -mx=9 builds/dejpeg-linux.7z ./builds/linux-build
-  rm -rf builds/linux-build
+  7z a -t7z -mx=9 builds/dejpeg-linux.7z ./builds/dejpeg-linux
+  rm -rf builds/dejpeg-linux
 else
   echo "NOTE: 7z is not installed, skipping compression"
 fi
