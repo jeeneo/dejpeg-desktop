@@ -114,6 +114,12 @@ function clearTempDir(dir: string): void {
   }
 }
 
+// --- NEW: Helper to release buffer memory ---
+function releaseBuffer(buf: Buffer | null) {
+  // Just set to null, let GC collect
+  buf = null;
+}
+
 function getChunkSizeForModel(modelName: string): number {
   return modelName && modelName.startsWith('scunet_') ? SCUNET_CHUNK_SIZE : DEFAULT_CHUNK_SIZE;
 }
@@ -348,58 +354,269 @@ class ImageProcessor {
     }
   }
 
+  // --- NEW: Force garbage collection if available ---
+  private forceGarbageCollection(): void {
+    if (global.gc) {
+      global.gc();
+    } else {
+      // Fallback: create memory pressure to trigger GC
+      const dummy = new Array(1000).fill(new ArrayBuffer(1024));
+      dummy.length = 0;
+    }
+  }
+
+  // --- REPLACE: processImageWithChunking with optimized memory management ---
   private async processImageWithChunking(imageBuffer: Buffer, strength: number, onProgress?: (state: ProcessingState) => void): Promise<Buffer> {
     const sessionId = randomUUID();
     const chunkDir = path.join(TEMP_FOLDER, `chunks_${sessionId}`);
     const processedDir = path.join(TEMP_FOLDER, `processed_${sessionId}`);
 
     try {
-      // Create temp directories
       if (!fs.existsSync(chunkDir)) fs.mkdirSync(chunkDir, { recursive: true });
       if (!fs.existsSync(processedDir)) fs.mkdirSync(processedDir, { recursive: true });
 
-      // Get image dimensions
       const { info } = await sharp(imageBuffer).toBuffer({ resolveWithObject: true });
       const { width, height } = info;
 
       // Create chunks
-      console.log('Creating chunks...');
       const chunks = await this.createChunks(imageBuffer, chunkDir);
       
       this.processingState.totalChunks = chunks.length;
       this.processingState.completedChunks = 0;
       if (onProgress) onProgress(this.processingState);
 
-      console.log(`Processing ${chunks.length} chunks...`);
-
-      // Process each chunk
+      // Process chunks with memory management
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
-        console.log(`Processing chunk ${i + 1}/${chunks.length} at (${chunk.x}, ${chunk.y})`);
 
-        // Load chunk
-        const chunkImageData = await loadImageFromFile(chunk.chunkFile);
-        const chunkBuffer = await sharp(chunkImageData.data, {
-          raw: {
-            width: chunkImageData.width,
-            height: chunkImageData.height,
-            channels: chunkImageData.channels as 1 | 2 | 3 | 4
-          }
-        }).png().toBuffer();
+        try {
+          // Load chunk as stream to minimize memory usage
+          const chunkBuffer = await sharp(chunk.chunkFile)
+            .removeAlpha()
+            .png()
+            .toBuffer();
+
+          // Process chunk
+          const processedChunk = await this.processChunk(chunkBuffer, strength);
+
+          // Save immediately and clear from memory
+          chunk.processedFile = path.join(processedDir, `processed_${chunk.x}_${chunk.y}.png`);
+          await saveImageToFile(processedChunk, chunk.processedFile);
+
+          // Force memory cleanup
+          this.forceGarbageCollection();
+
+          this.processingState.completedChunks++;
+          if (onProgress) onProgress(this.processingState);
+
+        } catch (error) {
+          console.error(`Error processing chunk ${i}:`, error);
+          throw error;
+        }
+      }
+
+      // Reassemble with optimized memory usage
+      const result = await this.reassembleChunksWithFeathering(chunks, width, height);
+
+      return result;
+    } finally {
+      // Clean up temp directories
+      try {
+        if (fs.existsSync(chunkDir)) {
+          clearTempDir(chunkDir);
+          fs.rmdirSync(chunkDir);
+        }
+        if (fs.existsSync(processedDir)) {
+          clearTempDir(processedDir);
+          fs.rmdirSync(processedDir);
+        }
+      } catch (cleanupError) {
+        console.warn('Error cleaning up temp directories:', cleanupError);
+      }
+      
+      // Final garbage collection
+      this.forceGarbageCollection();
+    }
+  }
+
+  // --- REPLACE: reassembleChunksWithFeathering to composite one chunk at a time ---
+  private async reassembleChunksWithFeathering(chunks: ChunkInfo[], totalWidth: number, totalHeight: number): Promise<Buffer> {
+    let result = sharp({
+      create: {
+        width: totalWidth,
+        height: totalHeight,
+        channels: 3,
+        background: { r: 0, g: 0, b: 0 }
+      }
+    });
+
+    const overlap = getOverlapForModel(this.modelName!);
+    const featherSize = Math.floor(overlap / 2);
+
+    // Process chunks ONE AT A TIME to avoid memory accumulation
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      if (!chunk.processedFile) continue;
+
+      try {
+        // Create feathered chunk using optimized method
+        const featheredChunk = await this.createFeatheredChunkOptimized(
+          chunk.processedFile,
+          chunk,
+          totalWidth,
+          totalHeight,
+          featherSize
+        );
+
+        // Composite immediately, then force garbage collection
+        result = result.composite([{
+          input: featheredChunk,
+          left: chunk.x,
+          top: chunk.y,
+          blend: 'over'
+        }]);
+
+        this.forceGarbageCollection();
+
+      } catch (error) {
+        console.error(`Error processing chunk ${i}:`, error);
+        throw error;
+      }
+    }
+
+    return await result.png().toBuffer();
+  }
+
+  // --- NEW: Optimized feathering that works directly with file paths ---
+  private async createFeatheredChunkOptimized(
+    chunkFilePath: string,
+    chunkInfo: ChunkInfo,
+    totalWidth: number,
+    totalHeight: number,
+    featherSize: number
+  ): Promise<Buffer> {
+    const { data, info } = await sharp(chunkFilePath)
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    const { width, height, channels } = info;
+
+    // Process alpha channel in-place
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const idx = (y * width + x) * channels + 3; // Alpha channel
+        let alpha = 1.0;
+        if (chunkInfo.x > 0 && x < featherSize) alpha = Math.min(alpha, x / featherSize);
+        if (chunkInfo.y > 0 && y < featherSize) alpha = Math.min(alpha, y / featherSize);
+        if (chunkInfo.x + width < totalWidth && x >= width - featherSize) alpha = Math.min(alpha, (width - x) / featherSize);
+        if (chunkInfo.y + height < totalHeight && y >= height - featherSize) alpha = Math.min(alpha, (height - y) / featherSize);
+        data[idx] = Math.floor(alpha * 255);
+      }
+    }
+
+    return await sharp(data, {
+      raw: {
+        width,
+        height,
+        channels: channels as 1 | 2 | 3 | 4,
+      }
+    }).png().toBuffer();
+  }
+
+  async processImage(imageBuffer: Buffer, strength: number = 0.5, onProgress?: (state: ProcessingState) => void): Promise<Buffer> {
+    if (!this.session || !this.modelInfo) {
+      throw new Error('No model loaded. Please load a model first.');
+    }
+
+    if (this.processing) {
+      throw new Error('Another image is currently being processed');
+    }
+
+    this.processing = true;
+    this.processingState = {
+      totalChunks: 0,
+      completedChunks: 0,
+      currentImage: 1,
+      totalImages: 1
+    };
+
+    try {
+      // Get image info
+      const { info } = await sharp(imageBuffer).toBuffer({ resolveWithObject: true });
+      const { width, height } = info;
+
+      console.log(`Processing image: ${width}x${height}`);
+
+      const effectiveChunkSize = getChunkSizeForModel(this.modelName!);
+      const overlap = getOverlapForModel(this.modelName!);
+
+      // Check if we need to chunk the image
+      if (width > effectiveChunkSize || height > effectiveChunkSize) {
+        return await this.processImageWithChunking(imageBuffer, strength, onProgress);
+      } else {
+        this.processingState.totalChunks = 1;
+        if (onProgress) onProgress(this.processingState);
+
+        const result = await this.processChunk(imageBuffer, strength);
+        this.processingState.completedChunks = 1;
+        if (onProgress) onProgress(this.processingState);
+
+        return result;
+      }
+    } catch (error) {
+      console.error(`Image processing failed: ${error}`);
+      throw error;
+    } finally {
+      this.processing = false;
+    }
+  }
+
+  private async processImageWithChunking(imageBuffer: Buffer, strength: number, onProgress?: (state: ProcessingState) => void): Promise<Buffer> {
+    const sessionId = randomUUID();
+    const chunkDir = path.join(TEMP_FOLDER, `chunks_${sessionId}`);
+    const processedDir = path.join(TEMP_FOLDER, `processed_${sessionId}`);
+
+    try {
+      if (!fs.existsSync(chunkDir)) fs.mkdirSync(chunkDir, { recursive: true });
+      if (!fs.existsSync(processedDir)) fs.mkdirSync(processedDir, { recursive: true });
+
+      const { info } = await sharp(imageBuffer).toBuffer({ resolveWithObject: true });
+      const { width, height } = info;
+
+      // Create chunks
+      const chunks = await this.createChunks(imageBuffer, chunkDir);
+      
+      this.processingState.totalChunks = chunks.length;
+      this.processingState.completedChunks = 0;
+      if (onProgress) onProgress(this.processingState);
+
+      // Process each chunk (release memory after each)
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+
+        // Load chunk from disk as stream, avoid keeping buffer in memory
+        const chunkBuffer = await sharp(chunk.chunkFile)
+          .removeAlpha()
+          .png()
+          .toBuffer();
 
         // Process chunk
         const processedChunk = await this.processChunk(chunkBuffer, strength);
 
-        // Save processed chunk
+        // Save processed chunk to disk
         chunk.processedFile = path.join(processedDir, `processed_${chunk.x}_${chunk.y}.png`);
         await saveImageToFile(processedChunk, chunk.processedFile);
+
+        // Release buffers
+        releaseBuffer(chunkBuffer);
+        releaseBuffer(processedChunk);
 
         this.processingState.completedChunks++;
         if (onProgress) onProgress(this.processingState);
       }
 
-      console.log('Reassembling chunks...');
-      // Reassemble chunks with feathering
+      // Reassemble chunks with feathering (stream from disk)
       const result = await this.reassembleChunksWithFeathering(chunks, width, height);
 
       return result;
@@ -422,38 +639,32 @@ class ImageProcessor {
 
   private async createChunks(imageBuffer: Buffer, chunkDir: string): Promise<ChunkInfo[]> {
     const chunks: ChunkInfo[] = [];
-    
     const { info } = await sharp(imageBuffer).toBuffer({ resolveWithObject: true });
     const { width, height } = info;
 
     const effectiveChunkSize = getChunkSizeForModel(this.modelName!);
     const overlap = getOverlapForModel(this.modelName!);
 
-    // Calculate grid dimensions
     const cols = Math.ceil(width / (effectiveChunkSize - overlap));
     const rows = Math.ceil(height / (effectiveChunkSize - overlap));
 
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
-        // Calculate chunk position with symmetric overlap
         const startX = col * (effectiveChunkSize - overlap);
         const startY = row * (effectiveChunkSize - overlap);
 
-        // Extend into overlap regions
         const chunkX = Math.max(0, startX - (col > 0 ? Math.floor(overlap / 2) : 0));
         const chunkY = Math.max(0, startY - (row > 0 ? Math.floor(overlap / 2) : 0));
 
-        // Calculate actual chunk dimensions
         let chunkWidth = Math.min(effectiveChunkSize + (col > 0 ? Math.floor(overlap / 2) : 0), width - chunkX);
         let chunkHeight = Math.min(effectiveChunkSize + (row > 0 ? Math.floor(overlap / 2) : 0), height - chunkY);
 
-        // Ensure we don't exceed image boundaries
         chunkWidth = Math.min(chunkWidth, width - chunkX);
         chunkHeight = Math.min(chunkHeight, height - chunkY);
 
         if (chunkWidth <= 0 || chunkHeight <= 0) continue;
 
-        // Extract chunk
+        // Extract chunk and immediately write to disk, release buffer
         const chunkBuffer = await sharp(imageBuffer)
           .extract({ left: chunkX, top: chunkY, width: chunkWidth, height: chunkHeight })
           .png()
@@ -461,6 +672,8 @@ class ImageProcessor {
 
         const chunkFile = path.join(chunkDir, `chunk_${chunkX}_${chunkY}.png`);
         await saveImageToFile(chunkBuffer, chunkFile);
+
+        releaseBuffer(chunkBuffer);
 
         chunks.push({
           x: chunkX,
@@ -579,7 +792,6 @@ class ImageProcessor {
   }
 
   private async reassembleChunksWithFeathering(chunks: ChunkInfo[], totalWidth: number, totalHeight: number): Promise<Buffer> {
-    // Create base image
     let result = sharp({
       create: {
         width: totalWidth,
@@ -592,85 +804,68 @@ class ImageProcessor {
     const overlap = getOverlapForModel(this.modelName!);
     const featherSize = Math.floor(overlap / 2);
 
-    // Process chunks in order
-    const compositeImages: any[] = [];
-
-    for (const chunk of chunks) {
+    // Process chunks ONE AT A TIME to avoid memory accumulation
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
       if (!chunk.processedFile) continue;
 
-      // Load processed chunk
-      const processedImage = await sharp(chunk.processedFile).png().toBuffer();
-      
-      // Create feathered version
-      const featheredChunk = await this.createFeatheredChunk(
-        processedImage, 
-        chunk, 
-        totalWidth, 
-        totalHeight, 
-        featherSize
-      );
+      try {
+        // Create feathered chunk using optimized method
+        const featheredChunk = await this.createFeatheredChunkOptimized(
+          chunk.processedFile,
+          chunk,
+          totalWidth,
+          totalHeight,
+          featherSize
+        );
 
-      compositeImages.push({
-        input: featheredChunk,
-        left: chunk.x,
-        top: chunk.y,
-        blend: 'over'
-      });
+        // Composite immediately, then force garbage collection
+        result = result.composite([{
+          input: featheredChunk,
+          left: chunk.x,
+          top: chunk.y,
+          blend: 'over'
+        }]);
+
+        this.forceGarbageCollection();
+
+      } catch (error) {
+        console.error(`Error processing chunk ${i}:`, error);
+        throw error;
+      }
     }
-
-    // Composite all chunks
-    result = result.composite(compositeImages);
 
     return await result.png().toBuffer();
   }
 
-  private async createFeatheredChunk(
-    chunkBuffer: Buffer, 
-    chunkInfo: ChunkInfo, 
-    totalWidth: number, 
-    totalHeight: number, 
+  private async createFeatheredChunkOptimized(
+    chunkFilePath: string,
+    chunkInfo: ChunkInfo,
+    totalWidth: number,
+    totalHeight: number,
     featherSize: number
   ): Promise<Buffer> {
-    const { data, info } = await sharp(chunkBuffer)
+    const { data, info } = await sharp(chunkFilePath)
       .ensureAlpha()
       .raw()
       .toBuffer({ resolveWithObject: true });
 
     const { width, height, channels } = info;
-    const modifiedData = Buffer.from(data);
 
-    // Apply feathering to alpha channel
+    // Process alpha channel in-place
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
-        const idx = (y * width + x) * channels;
+        const idx = (y * width + x) * channels + 3; // Alpha channel
         let alpha = 1.0;
-
-        // Left edge feathering (except for leftmost chunks)
-        if (chunkInfo.x > 0 && x < featherSize) {
-          alpha = Math.min(alpha, x / featherSize);
-        }
-
-        // Top edge feathering (except for topmost chunks)
-        if (chunkInfo.y > 0 && y < featherSize) {
-          alpha = Math.min(alpha, y / featherSize);
-        }
-
-        // Right edge feathering (except for rightmost chunks)
-        if (chunkInfo.x + width < totalWidth && x >= width - featherSize) {
-          alpha = Math.min(alpha, (width - x) / featherSize);
-        }
-
-        // Bottom edge feathering (except for bottommost chunks)
-        if (chunkInfo.y + height < totalHeight && y >= height - featherSize) {
-          alpha = Math.min(alpha, (height - y) / featherSize);
-        }
-
-        // Apply alpha
-        modifiedData[idx + 3] = Math.floor(alpha * 255);
+        if (chunkInfo.x > 0 && x < featherSize) alpha = Math.min(alpha, x / featherSize);
+        if (chunkInfo.y > 0 && y < featherSize) alpha = Math.min(alpha, y / featherSize);
+        if (chunkInfo.x + width < totalWidth && x >= width - featherSize) alpha = Math.min(alpha, (width - x) / featherSize);
+        if (chunkInfo.y + height < totalHeight && y >= height - featherSize) alpha = Math.min(alpha, (height - y) / featherSize);
+        data[idx] = Math.floor(alpha * 255);
       }
     }
 
-    return await sharp(modifiedData, {
+    return await sharp(data, {
       raw: {
         width,
         height,

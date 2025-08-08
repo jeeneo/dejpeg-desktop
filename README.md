@@ -12,13 +12,19 @@ nodejs 18 or newer
 npm install express cors multer pkg sharp@0.32.6 nodemon @types/express @types/cors @types/multer @types/node onnxruntime-node@latest
 ```
 
+and
+
+```
+npm install typescript -g
+```
+
 then
 
 ```bash
 npm run build && npm start
 ```
 
-then `npm run build` or manually copy `src/static` to `dist` if on windows
+<!-- then `npm run build` or manually copy `src/static` to `dist` if on windows -->
 
 # building
 
