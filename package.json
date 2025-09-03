@@ -8,7 +8,7 @@
     "dev": "ts-node src/app.ts",
     "build": "tsc && cp -r src/static dist",
     "build-linux": "bash scripts/build-linux.sh",
-    "build-win": "bash scripts/build-win.sh",
+    "build-windows": "bash scripts/build-windows.sh",
     "watch": "tsc -w"
   },
   "dependencies": {

@@ -6,16 +6,10 @@ prebuilt binaries available under `Releases` or build below
 
 preq:
 
-nodejs 18 or newer
+nodejs 18, up to 20
 
 ```bash
-npm install express cors multer pkg sharp@0.32.6 nodemon @types/express @types/cors @types/multer @types/node onnxruntime-node@latest winston
-```
-
-and
-
-```bash
-npm install typescript -g
+npm install
 ```
 
 then
@@ -32,7 +26,7 @@ npm run build && npm start
 
 # Linux system
 
-rename `node_modules` to `node_modules_linux` (or if you have a windows version of `node_modules`, it should be `node_modules_windows`) then run `npm run build-linux` (or `npm run build-win` for windows)
+rename `node_modules` to `node_modules_linux` (or if you have a windows version of `node_modules`, it should be `node_modules_windows`) then run `npm run build-linux` (or `npm run build-windows` for windows)
 
 this will compile and zip the build (if 7z exists)
 

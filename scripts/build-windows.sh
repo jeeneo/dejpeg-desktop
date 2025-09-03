@@ -5,7 +5,7 @@ cd "$(dirname "$0")"
 cd ..
 
 if [ -d node_modules ]; then
-  echo "node_modules directory already exists. quitting."
+  echo "node_modules directory exists. quitting."
   exit 1
 fi
 
@@ -19,15 +19,15 @@ mv node_modules_windows node_modules
 
 tsc
 cp -r src/static dist
-pkg . --target node18-win-x64 --output builds/dejpeg-win.exe
+pkg . --target node18-win-x64 --output builds/dejpeg-windows.exe
 
 mv node_modules node_modules_windows
 
 if command -v 7z >/dev/null 2>&1; then
-  7z a -t7z -mx=9 builds/dejpeg-win.7z ./builds/dejpeg-win.exe
-  rm -rf builds/dejpeg-win.exe
+  7z a -t7z -mx=9 builds/dejpeg-windows.7z ./builds/dejpeg-windows.exe
+  rm -rf builds/dejpeg-windows.exe
 else
   echo "NOTE: 7z is not installed, skipping compression"
 fi
 
-echo "build complete: dejpeg-win.7z"
+echo "build complete: dejpeg-windows.7z"
