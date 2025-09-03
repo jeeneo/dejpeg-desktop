@@ -29,7 +29,7 @@
                     <div class="card-content">
                         <div style="margin-bottom:0.5rem; display: flex; gap: 0.5rem;">
                             <select id="modelSelect" class="button secondary" style="width:100%;">
-                                <option value="">-- previous models --</option>
+                                <option value="">-- imported models --</option>
                             </select>
                             <button id="deleteModelBtn" class="button danger" title="Delete selected model" style="flex:0 0 auto; min-width:2.5rem; display:flex; align-items:center; justify-content:center;">
                                 <span class="material-icons-round">delete</span>
@@ -93,13 +93,13 @@
                     <div class="comparison-slider" id="comparisonSlider" style="display: none;"></div>
                     
                     <div class="zoom-controls" id="zoomControls" style="display: none;">
-                        <button class="zoom-btn" id="zoomOut" title="Zoom Out">
+                        <button class="zoom-btn" id="zoomOut" title="zoom out">
                             <span class="material-icons-round">zoom_out</span>
                         </button>
                         <button class="zoom-btn" id="resetZoom" title="Reset Zoom">
                             <span class="material-icons-round">center_focus_strong</span>
                         </button>
-                        <button class="zoom-btn" id="zoomIn" title="Zoom In">
+                        <button class="zoom-btn" id="zoomIn" title="zoom in">
                             <span class="material-icons-round">zoom_in</span>
                         </button>
                     </div>
@@ -107,7 +107,7 @@
                     <div class="placeholder-content" id="placeholderContent">
                         <div class="placeholder-icon">🖼️</div>
                         <h3>images will show up here</h3>
-                        <p>load a model and select an image to get started</p>
+                        <p>load a model and pick an image to get started</p>
                     </div>
                 </div>
 
@@ -198,7 +198,7 @@
             } else {
                 labelElement.classList.remove('has-file');
                 iconSpan.textContent = labelElement.id === 'modelLabel' ? 'cloud_upload' : 'add_photo_alternate';
-                textNode.textContent = labelElement.id === 'modelLabel' ? 'Choose ONNX Model' : 'Choose Image';
+                textNode.textContent = labelElement.id === 'modelLabel' ? 'import ONNX model' : 'pick image';
             }
         };
 
@@ -217,7 +217,6 @@
                 const file = elements.modelFile.files[0];
                 const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
 
-                // Check file size limits
                 if (file.size > 2 * 1024 * 1024 * 1024) { // 2GB
                     showStatus('modelStatus', `model is too large: ${fileSizeMB}MB (max: 2GB)`, 'error');
                     elements.loadModelBtn.disabled = false;
@@ -259,7 +258,6 @@
                     elements.loadModelBtn.disabled = false;
                 }
             } else if (selectedModel) {
-                // --- NEW: Load model by filename (no file upload) ---
                 showStatus('modelStatus', `loading model '${selectedModel}'...`, 'loading');
                 try {
                     const response = await fetch('/api/load_model?filename=' + encodeURIComponent(selectedModel), {
@@ -357,10 +355,8 @@
                     showStatus('processingIndicator', error.error, 'error');
                 }
             } catch (error) {
-                if (error.name === 'AbortError') {
-                    showStatus('processingIndicator', 'Processing cancelled', 'error');
-                } else {
-                    showStatus('processingIndicator', `Error processing image: ${error.message}`, 'error');
+                if (error.name) {
+                    showStatus('processingIndicator', `error processing image: ${error.message}`, 'error');
                 }
             } finally {
                 AppState.abortController = null;
@@ -507,12 +503,12 @@
         elements.deleteModelBtn.addEventListener('click', async () => {
             const selectedModel = elements.modelSelect.value;
             if (!selectedModel) {
-                showStatus('modelStatus', 'No model selected to delete', 'error');
+                showStatus('modelStatus', 'no model selected to delete', 'error');
                 return;
             }
-            if (!confirm(`Delete model "${selectedModel}"? This cannot be undone.`)) return;
+            if (!confirm(`delete model "${selectedModel}"? this cannot be undone.`)) return;
             elements.deleteModelBtn.disabled = true;
-            showStatus('modelStatus', `Deleting model "${selectedModel}"...`, 'loading');
+            showStatus('modelStatus', `deleting model "${selectedModel}"...`, 'loading');
             try {
                 const res = await fetch('/api/delete_model', {
                     method: 'POST',
@@ -528,10 +524,10 @@
                     updateProcessButtonState();
                     document.querySelector('.slider-container').style.display = 'none';
                 } else {
-                    showStatus('modelStatus', data.error || 'Failed to delete model', 'error');
+                    showStatus('modelStatus', data.error || 'failed to delete model', 'error');
                 }
             } catch (e) {
-                showStatus('modelStatus', `Error deleting model: ${e.message}`, 'error');
+                showStatus('modelStatus', `error deleting model: ${e.message}`, 'error');
             } finally {
                 elements.deleteModelBtn.disabled = false;
             }
@@ -544,7 +540,7 @@
 
         elements.imageFile.addEventListener('change', (e) => {
             if (AppState.abortController && AppState.abortController.signal.aborted === false) {
-                showStatus('processingIndicator', 'Please wait for current processing to complete or cancel it first', 'error');
+                showStatus('processingIndicator', 'please wait for current processing to complete or kill the server', 'error');
                 e.target.value = '';
                 return;
             }
