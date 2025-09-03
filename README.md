@@ -20,7 +20,7 @@ npm run build && npm start
 
 ## Windows
 
-note: the dev system is Linux, so `npm run build` wont work oobe, and you will need to copy `src/static` to `dist`
+note: the dev system is Linux, so `npm run build` wont work out of the box, and you will need to copy `src/static` to `dist`
 
 requires [microsoft vc C++ redist](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170#latest-microsoft-visual-c-redistributable-version)
 
