@@ -6,13 +6,13 @@ import fs from 'fs';
 import { InferenceSession, Tensor } from 'onnxruntime-node';
 import sharp from 'sharp';
 import { randomUUID } from 'crypto';
-// import { extractNodeModules, cleanupNodeModules } from './extract';
+import winston from 'winston';
 
 const app = express();
 const PORT = 5567;
 
 // Configuration
-import os from 'os';
+// import os from 'os';
 
 const UPLOAD_FOLDER = path.join(process.env.HOME || '/tmp', '.dejpeg', 'models');
 const TEMP_FOLDER = path.join(process.env.HOME || '/tmp', '.dejpeg', 'temp');
@@ -20,13 +20,11 @@ const ALLOWED_EXTENSIONS = new Set(['.onnx']);
 const MAX_MODEL_SIZE = 2 * 1024 * 1024 * 1024; // 2GB
 const MAX_IMAGE_SIZE = 500 * 1024 * 1024; // 500MB
 
-// Chunking configuration
 const DEFAULT_CHUNK_SIZE = 1200;
 const SCUNET_CHUNK_SIZE = 640;
 const DEFAULT_OVERLAP = 32;
 const SCUNET_OVERLAP = 128;
 
-// Ensure upload folder exists
 if (!fs.existsSync(UPLOAD_FOLDER)) {
   fs.mkdirSync(UPLOAD_FOLDER, { recursive: true });
 }
@@ -35,12 +33,10 @@ if (!fs.existsSync(TEMP_FOLDER)) {
   fs.mkdirSync(TEMP_FOLDER, { recursive: true });
 }
 
-// Middleware
 app.use(cors());
 const staticPath = path.join(__dirname, 'static');
 app.use('/static', express.static(staticPath));
 
-// Multer configuration for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, UPLOAD_FOLDER);
@@ -74,7 +70,6 @@ const imageUpload = multer({
   }
 });
 
-// Interfaces
 interface ChunkInfo {
   x: number;
   y: number;
@@ -103,7 +98,6 @@ interface ProcessingState {
   totalImages: number;
 }
 
-// Utility functions
 function clearTempDir(dir: string): void {
   if (fs.existsSync(dir)) {
     const files = fs.readdirSync(dir);
@@ -112,12 +106,6 @@ function clearTempDir(dir: string): void {
       fs.unlinkSync(filePath);
     }
   }
-}
-
-// --- NEW: Helper to release buffer memory ---
-function releaseBuffer(buf: Buffer | null) {
-  // Just set to null, let GC collect
-  buf = null;
 }
 
 function getChunkSizeForModel(modelName: string): number {
@@ -146,7 +134,32 @@ async function loadImageFromFile(filePath: string): Promise<{ data: Buffer; widt
   };
 }
 
-// Image Processor Class
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.Console(),
+    // new winston.transports.File({ filename: 'app.log' })
+  ]
+});
+
+class ModelLoadError extends Error {
+  constructor(message: string, public modelPath: string) {
+    super(message);
+    this.name = 'ModelLoadError';
+  }
+}
+
+class ImageProcessingError extends Error {
+  constructor(message: string, public stage: string) {
+    super(message);
+    this.name = 'ImageProcessingError';
+  }
+}
+
 class ImageProcessor {
   private session: InferenceSession | null = null;
   private modelName: string | null = null;
@@ -166,24 +179,23 @@ class ImageProcessor {
       }
 
       if (!fs.existsSync(modelPath)) {
-        throw new Error(`Model file not found: ${modelPath}`);
+        throw new ModelLoadError(`model file not found: ${modelPath}`, modelPath);
       }
 
-      console.log(`Loading model: ${modelPath}`);
+      logger.info(`Loading model: ${modelPath}`);
       this.session = await InferenceSession.create(modelPath);
       this.modelName = path.basename(modelPath, '.onnx');
 
-      console.log(`Input names: ${this.session.inputNames.join(', ')}`);
-      console.log(`Output names: ${this.session.outputNames.join(', ')}`);
+      logger.info(`Input names: ${this.session.inputNames.join(', ')}`);
+      logger.info(`Output names: ${this.session.outputNames.join(', ')}`);
 
-      // Analyze model inputs dynamically
       this.modelInfo = await this.analyzeModelInputs();
 
-      console.log(`Model loaded successfully: ${this.modelName}`);
-      console.log(`Model info:`, this.modelInfo);
+      logger.info(`model loaded successfully: ${this.modelName}`);
+      logger.info(`model info: ${JSON.stringify(this.modelInfo)}`);
       return true;
     } catch (error) {
-      console.error(`Failed to load model: ${error}`);
+      logger.error(`failed to load model: ${error instanceof Error ? error.message : error}`);
       this.session = null;
       this.modelName = null;
       this.modelInfo = null;
@@ -193,7 +205,7 @@ class ImageProcessor {
 
   private async analyzeModelInputs(): Promise<ModelInfo> {
     if (!this.session) {
-      throw new Error('No session available');
+      throw new Error('no session available');
     }
 
     let imageInputName: string | null = null;
@@ -202,98 +214,79 @@ class ImageProcessor {
     let hasQualityInput = false;
     let qualityInputName: string | undefined;
 
-    console.log('Available input names:', this.session.inputNames);
+    logger.info('Available input names:', this.session.inputNames);
 
-    // Try to identify the image input by name patterns
     const imageInputCandidates = this.session.inputNames.filter(name => 
       name.toLowerCase().includes('input') || 
       name.toLowerCase().includes('image') || 
       name.toLowerCase().includes('x') ||
       name === 'input' ||
-      (this.session && this.session.inputNames.length === 1) // If only one input, assume it's the image
+      (this.session && this.session.inputNames.length === 1)
     );
 
     if (imageInputCandidates.length === 0) {
-      // Fallback: use the first input
       imageInputCandidates.push(this.session.inputNames[0]);
     }
 
-    // Test with small dummy tensors to determine expected shape
     for (const candidateName of imageInputCandidates) {
       try {
-        // Test with grayscale (1 channel)
         const testGrayscale = new Tensor('float32', new Float32Array(64 * 64), [1, 1, 64, 64]);
         const testFeeds: Record<string, Tensor> = {};
         testFeeds[candidateName] = testGrayscale;
         
         try {
           await this.session.run(testFeeds);
-          // If successful, this is likely a grayscale model
           imageInputName = candidateName;
-          imageInputShape = [1, 1, 64, 64]; // We'll update height/width dynamically
+          imageInputShape = [1, 1, 64, 64];
           isGrayscale = true;
-          console.log(`Detected grayscale image input: ${candidateName}`);
+          logger.info(`Detected grayscale image input: ${candidateName}`);
           break;
         } catch (e1) {
-          // Try color (3 channels)
           try {
             const testColor = new Tensor('float32', new Float32Array(3 * 64 * 64), [1, 3, 64, 64]);
             testFeeds[candidateName] = testColor;
             await this.session.run(testFeeds);
-            // If successful, this is likely a color model
             imageInputName = candidateName;
-            imageInputShape = [1, 3, 64, 64]; // We'll update height/width dynamically
+            imageInputShape = [1, 3, 64, 64];
             isGrayscale = false;
-            console.log(`Detected color image input: ${candidateName}`);
+            logger.info(`Detected color image input: ${candidateName}`);
             break;
           } catch (e2) {
-            if (e2 && typeof e2 === 'object' && 'message' in e2) {
-              console.log(`Failed to detect tensor format for ${candidateName}:`, (e2 as any).message);
-            } else {
-              console.log(`Failed to detect tensor format for ${candidateName}:`, e2);
-            }
+            logger.warn(`Failed to detect tensor format for ${candidateName}: ${(e2 as any).message}`);
             continue;
           }
         }
       } catch (e) {
-        if (e && typeof e === 'object' && 'message' in e) {
-          console.log(`Error testing input ${candidateName}:`, (e as any).message);
-        } else {
-          console.log(`Error testing input ${candidateName}:`, e);
-        }
+        logger.warn(`Error testing input ${candidateName}: ${(e as any).message}`);
         continue;
       }
     }
 
     if (!imageInputName) {
-      // Final fallback - assume first input is image with color
       imageInputName = this.session.inputNames[0];
-      imageInputShape = [1, 3, -1, -1]; // Dynamic height/width
+      imageInputShape = [1, 3, -1, -1];
       isGrayscale = false;
-      console.log(`Using fallback: assuming ${imageInputName} is color image input`);
+      logger.info(`Using fallback: assuming ${imageInputName} is color image input`);
     }
 
-    // Check for quality/strength input
     for (const inputName of this.session.inputNames) {
       if (inputName !== imageInputName) {
-        // Common names for quality inputs
         if (inputName.toLowerCase().includes('qf') || 
             inputName.toLowerCase().includes('quality') ||
             inputName.toLowerCase().includes('strength')) {
           hasQualityInput = true;
           qualityInputName = inputName;
-          console.log(`Detected quality input: ${inputName}`);
+          logger.info(`Detected quality input: ${inputName}`);
           break;
         }
       }
     }
 
-    // If we have exactly 2 inputs and haven't found quality input, assume second is quality
     if (!hasQualityInput && this.session.inputNames.length === 2) {
       qualityInputName = this.session.inputNames.find(name => name !== imageInputName);
       if (qualityInputName) {
         hasQualityInput = true;
-        console.log(`Assuming second input is quality: ${qualityInputName}`);
+        logger.info(`Assuming second input is quality: ${qualityInputName}`);
       }
     }
 
@@ -308,11 +301,11 @@ class ImageProcessor {
 
   async processImage(imageBuffer: Buffer, strength: number = 0.5, onProgress?: (state: ProcessingState) => void): Promise<Buffer> {
     if (!this.session || !this.modelInfo) {
-      throw new Error('No model loaded. Please load a model first.');
+      throw new ImageProcessingError('No model loaded. Please load a model first.', 'init');
     }
 
     if (this.processing) {
-      throw new Error('Another image is currently being processed');
+      throw new ImageProcessingError('Another image is currently being processed', 'init');
     }
 
     this.processing = true;
@@ -324,16 +317,14 @@ class ImageProcessor {
     };
 
     try {
-      // Get image info
       const { info } = await sharp(imageBuffer).toBuffer({ resolveWithObject: true });
       const { width, height } = info;
 
-      console.log(`Processing image: ${width}x${height}`);
+      logger.info(`Processing image: ${width}x${height}`);
 
       const effectiveChunkSize = getChunkSizeForModel(this.modelName!);
       const overlap = getOverlapForModel(this.modelName!);
 
-      // Check if we need to chunk the image
       if (width > effectiveChunkSize || height > effectiveChunkSize) {
         return await this.processImageWithChunking(imageBuffer, strength, onProgress);
       } else {
@@ -347,225 +338,7 @@ class ImageProcessor {
         return result;
       }
     } catch (error) {
-      console.error(`Image processing failed: ${error}`);
-      throw error;
-    } finally {
-      this.processing = false;
-    }
-  }
-
-  // --- NEW: Force garbage collection if available ---
-  private forceGarbageCollection(): void {
-    if (global.gc) {
-      global.gc();
-    } else {
-      // Fallback: create memory pressure to trigger GC
-      const dummy = new Array(1000).fill(new ArrayBuffer(1024));
-      dummy.length = 0;
-    }
-  }
-
-  // --- REPLACE: processImageWithChunking with optimized memory management ---
-  private async processImageWithChunking(imageBuffer: Buffer, strength: number, onProgress?: (state: ProcessingState) => void): Promise<Buffer> {
-    const sessionId = randomUUID();
-    const chunkDir = path.join(TEMP_FOLDER, `chunks_${sessionId}`);
-    const processedDir = path.join(TEMP_FOLDER, `processed_${sessionId}`);
-
-    try {
-      if (!fs.existsSync(chunkDir)) fs.mkdirSync(chunkDir, { recursive: true });
-      if (!fs.existsSync(processedDir)) fs.mkdirSync(processedDir, { recursive: true });
-
-      const { info } = await sharp(imageBuffer).toBuffer({ resolveWithObject: true });
-      const { width, height } = info;
-
-      // Create chunks
-      const chunks = await this.createChunks(imageBuffer, chunkDir);
-      
-      this.processingState.totalChunks = chunks.length;
-      this.processingState.completedChunks = 0;
-      if (onProgress) onProgress(this.processingState);
-
-      // Process chunks with memory management
-      for (let i = 0; i < chunks.length; i++) {
-        const chunk = chunks[i];
-
-        try {
-          // Load chunk as stream to minimize memory usage
-          const chunkBuffer = await sharp(chunk.chunkFile)
-            .removeAlpha()
-            .png()
-            .toBuffer();
-
-          // Process chunk
-          const processedChunk = await this.processChunk(chunkBuffer, strength);
-
-          // Save immediately and clear from memory
-          chunk.processedFile = path.join(processedDir, `processed_${chunk.x}_${chunk.y}.png`);
-          await saveImageToFile(processedChunk, chunk.processedFile);
-
-          // Force memory cleanup
-          this.forceGarbageCollection();
-
-          this.processingState.completedChunks++;
-          if (onProgress) onProgress(this.processingState);
-
-        } catch (error) {
-          console.error(`Error processing chunk ${i}:`, error);
-          throw error;
-        }
-      }
-
-      // Reassemble with optimized memory usage
-      const result = await this.reassembleChunksWithFeathering(chunks, width, height);
-
-      return result;
-    } finally {
-      // Clean up temp directories
-      try {
-        if (fs.existsSync(chunkDir)) {
-          clearTempDir(chunkDir);
-          fs.rmdirSync(chunkDir);
-        }
-        if (fs.existsSync(processedDir)) {
-          clearTempDir(processedDir);
-          fs.rmdirSync(processedDir);
-        }
-      } catch (cleanupError) {
-        console.warn('Error cleaning up temp directories:', cleanupError);
-      }
-      
-      // Final garbage collection
-      this.forceGarbageCollection();
-    }
-  }
-
-  // --- REPLACE: reassembleChunksWithFeathering to composite one chunk at a time ---
-  private async reassembleChunksWithFeathering(chunks: ChunkInfo[], totalWidth: number, totalHeight: number): Promise<Buffer> {
-    let result = sharp({
-      create: {
-        width: totalWidth,
-        height: totalHeight,
-        channels: 3,
-        background: { r: 0, g: 0, b: 0 }
-      }
-    });
-
-    const overlap = getOverlapForModel(this.modelName!);
-    const featherSize = Math.floor(overlap / 2);
-
-    // Process chunks ONE AT A TIME to avoid memory accumulation
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i];
-      if (!chunk.processedFile) continue;
-
-      try {
-        // Create feathered chunk using optimized method
-        const featheredChunk = await this.createFeatheredChunkOptimized(
-          chunk.processedFile,
-          chunk,
-          totalWidth,
-          totalHeight,
-          featherSize
-        );
-
-        // Composite immediately, then force garbage collection
-        result = result.composite([{
-          input: featheredChunk,
-          left: chunk.x,
-          top: chunk.y,
-          blend: 'over'
-        }]);
-
-        this.forceGarbageCollection();
-
-      } catch (error) {
-        console.error(`Error processing chunk ${i}:`, error);
-        throw error;
-      }
-    }
-
-    return await result.png().toBuffer();
-  }
-
-  // --- NEW: Optimized feathering that works directly with file paths ---
-  private async createFeatheredChunkOptimized(
-    chunkFilePath: string,
-    chunkInfo: ChunkInfo,
-    totalWidth: number,
-    totalHeight: number,
-    featherSize: number
-  ): Promise<Buffer> {
-    const { data, info } = await sharp(chunkFilePath)
-      .ensureAlpha()
-      .raw()
-      .toBuffer({ resolveWithObject: true });
-
-    const { width, height, channels } = info;
-
-    // Process alpha channel in-place
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const idx = (y * width + x) * channels + 3; // Alpha channel
-        let alpha = 1.0;
-        if (chunkInfo.x > 0 && x < featherSize) alpha = Math.min(alpha, x / featherSize);
-        if (chunkInfo.y > 0 && y < featherSize) alpha = Math.min(alpha, y / featherSize);
-        if (chunkInfo.x + width < totalWidth && x >= width - featherSize) alpha = Math.min(alpha, (width - x) / featherSize);
-        if (chunkInfo.y + height < totalHeight && y >= height - featherSize) alpha = Math.min(alpha, (height - y) / featherSize);
-        data[idx] = Math.floor(alpha * 255);
-      }
-    }
-
-    return await sharp(data, {
-      raw: {
-        width,
-        height,
-        channels: channels as 1 | 2 | 3 | 4,
-      }
-    }).png().toBuffer();
-  }
-
-  async processImage(imageBuffer: Buffer, strength: number = 0.5, onProgress?: (state: ProcessingState) => void): Promise<Buffer> {
-    if (!this.session || !this.modelInfo) {
-      throw new Error('No model loaded. Please load a model first.');
-    }
-
-    if (this.processing) {
-      throw new Error('Another image is currently being processed');
-    }
-
-    this.processing = true;
-    this.processingState = {
-      totalChunks: 0,
-      completedChunks: 0,
-      currentImage: 1,
-      totalImages: 1
-    };
-
-    try {
-      // Get image info
-      const { info } = await sharp(imageBuffer).toBuffer({ resolveWithObject: true });
-      const { width, height } = info;
-
-      console.log(`Processing image: ${width}x${height}`);
-
-      const effectiveChunkSize = getChunkSizeForModel(this.modelName!);
-      const overlap = getOverlapForModel(this.modelName!);
-
-      // Check if we need to chunk the image
-      if (width > effectiveChunkSize || height > effectiveChunkSize) {
-        return await this.processImageWithChunking(imageBuffer, strength, onProgress);
-      } else {
-        this.processingState.totalChunks = 1;
-        if (onProgress) onProgress(this.processingState);
-
-        const result = await this.processChunk(imageBuffer, strength);
-        this.processingState.completedChunks = 1;
-        if (onProgress) onProgress(this.processingState);
-
-        return result;
-      }
-    } catch (error) {
-      console.error(`Image processing failed: ${error}`);
+      logger.error(`Image processing failed: ${error instanceof Error ? error.message : error}`);
       throw error;
     } finally {
       this.processing = false;
@@ -584,61 +357,62 @@ class ImageProcessor {
       const { info } = await sharp(imageBuffer).toBuffer({ resolveWithObject: true });
       const { width, height } = info;
 
-      // Create chunks
+      logger.info('Creating chunks...');
       const chunks = await this.createChunks(imageBuffer, chunkDir);
       
       this.processingState.totalChunks = chunks.length;
       this.processingState.completedChunks = 0;
       if (onProgress) onProgress(this.processingState);
 
-      // Process each chunk (release memory after each)
+      logger.info(`Processing ${chunks.length} chunks...`);
+
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
+        logger.info(`Processing chunk ${i + 1}/${chunks.length} at (${chunk.x}, ${chunk.y})`);
 
-        // Load chunk from disk as stream, avoid keeping buffer in memory
-        const chunkBuffer = await sharp(chunk.chunkFile)
-          .removeAlpha()
-          .png()
-          .toBuffer();
+        const chunkImageData = await loadImageFromFile(chunk.chunkFile);
+        const chunkBuffer = await sharp(chunkImageData.data, {
+          raw: {
+            width: chunkImageData.width,
+            height: chunkImageData.height,
+            channels: chunkImageData.channels as 1 | 2 | 3 | 4
+          }
+        }).png().toBuffer();
 
-        // Process chunk
         const processedChunk = await this.processChunk(chunkBuffer, strength);
 
-        // Save processed chunk to disk
         chunk.processedFile = path.join(processedDir, `processed_${chunk.x}_${chunk.y}.png`);
         await saveImageToFile(processedChunk, chunk.processedFile);
-
-        // Release buffers
-        releaseBuffer(chunkBuffer);
-        releaseBuffer(processedChunk);
 
         this.processingState.completedChunks++;
         if (onProgress) onProgress(this.processingState);
       }
 
-      // Reassemble chunks with feathering (stream from disk)
+      logger.info('Reassembling chunks...');
       const result = await this.reassembleChunksWithFeathering(chunks, width, height);
 
       return result;
     } finally {
-      // Clean up temp directories
       try {
         if (fs.existsSync(chunkDir)) {
           clearTempDir(chunkDir);
           fs.rmdirSync(chunkDir);
+          logger.info(`Cleaned up chunkDir: ${chunkDir}`);
         }
         if (fs.existsSync(processedDir)) {
           clearTempDir(processedDir);
           fs.rmdirSync(processedDir);
+          logger.info(`Cleaned up processedDir: ${processedDir}`);
         }
       } catch (cleanupError) {
-        console.warn('Error cleaning up temp directories:', cleanupError);
+        logger.warn('Error cleaning up temp directories:', cleanupError);
       }
     }
   }
 
   private async createChunks(imageBuffer: Buffer, chunkDir: string): Promise<ChunkInfo[]> {
     const chunks: ChunkInfo[] = [];
+    
     const { info } = await sharp(imageBuffer).toBuffer({ resolveWithObject: true });
     const { width, height } = info;
 
@@ -664,7 +438,6 @@ class ImageProcessor {
 
         if (chunkWidth <= 0 || chunkHeight <= 0) continue;
 
-        // Extract chunk and immediately write to disk, release buffer
         const chunkBuffer = await sharp(imageBuffer)
           .extract({ left: chunkX, top: chunkY, width: chunkWidth, height: chunkHeight })
           .png()
@@ -672,8 +445,6 @@ class ImageProcessor {
 
         const chunkFile = path.join(chunkDir, `chunk_${chunkX}_${chunkY}.png`);
         await saveImageToFile(chunkBuffer, chunkFile);
-
-        releaseBuffer(chunkBuffer);
 
         chunks.push({
           x: chunkX,
@@ -696,8 +467,6 @@ class ImageProcessor {
     if (!this.session || !this.modelInfo) {
       throw new Error('No model loaded');
     }
-
-    // Convert image to the format expected by the model
     const { data, info } = await sharp(imageBuffer)
       .removeAlpha()
       .raw()
@@ -705,7 +474,6 @@ class ImageProcessor {
 
     const { width, height, channels } = info;
 
-    // Create input array in CHW format
     let inputArray: Float32Array;
     
     if (this.modelInfo.isGrayscale) {
@@ -714,7 +482,6 @@ class ImageProcessor {
         for (let w = 0; w < width; w++) {
           const idx = h * width + w;
           const pixelIdx = idx * channels;
-          // Convert to grayscale
           const gray = channels === 1 ? data[pixelIdx] : 
                       (data[pixelIdx] + data[pixelIdx + 1] + data[pixelIdx + 2]) / 3;
           inputArray[idx] = gray / 255.0;
@@ -733,8 +500,7 @@ class ImageProcessor {
           }
         }
       }
-      
-      // Fill remaining channels if needed
+    
       if (actualChannels < 3) {
         for (let c = actualChannels; c < 3; c++) {
           for (let h = 0; h < height; h++) {
@@ -748,26 +514,21 @@ class ImageProcessor {
       }
     }
 
-    // Create input tensor with dynamic shape
     const actualInputShape = [1, this.modelInfo.isGrayscale ? 1 : 3, height, width];
     const inputTensor = new Tensor('float32', inputArray, actualInputShape);
 
-    // Prepare feeds
     const feeds: Record<string, Tensor> = {};
     feeds[this.modelInfo.imageInputName] = inputTensor;
 
-    // Add quality input if needed
     if (this.modelInfo.hasQualityInput && this.modelInfo.qualityInputName) {
       feeds[this.modelInfo.qualityInputName] = new Tensor('float32', new Float32Array([strength]), [1, 1]);
     }
 
-    // Run inference
     const output = await this.session.run(feeds);
     const outputTensor = output[this.session.outputNames[0]];
     const outputData = outputTensor.data as Float32Array;
     const [, outputChannels, outputHeight, outputWidth] = outputTensor.dims;
 
-    // Convert output back to image format (HWC)
     const outputBuffer = Buffer.alloc(outputHeight * outputWidth * outputChannels);
     
     for (let c = 0; c < outputChannels; c++) {
@@ -781,7 +542,6 @@ class ImageProcessor {
       }
     }
 
-    // Convert back to PNG
     return await sharp(outputBuffer, {
       raw: {
         width: outputWidth,
@@ -804,68 +564,75 @@ class ImageProcessor {
     const overlap = getOverlapForModel(this.modelName!);
     const featherSize = Math.floor(overlap / 2);
 
-    // Process chunks ONE AT A TIME to avoid memory accumulation
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i];
+    const compositeImages: any[] = [];
+
+    for (const chunk of chunks) {
       if (!chunk.processedFile) continue;
 
-      try {
-        // Create feathered chunk using optimized method
-        const featheredChunk = await this.createFeatheredChunkOptimized(
-          chunk.processedFile,
-          chunk,
-          totalWidth,
-          totalHeight,
-          featherSize
-        );
+      const processedImage = await sharp(chunk.processedFile).png().toBuffer();
+      
+      const featheredChunk = await this.createFeatheredChunk(
+        processedImage, 
+        chunk, 
+        totalWidth, 
+        totalHeight, 
+        featherSize
+      );
 
-        // Composite immediately, then force garbage collection
-        result = result.composite([{
-          input: featheredChunk,
-          left: chunk.x,
-          top: chunk.y,
-          blend: 'over'
-        }]);
-
-        this.forceGarbageCollection();
-
-      } catch (error) {
-        console.error(`Error processing chunk ${i}:`, error);
-        throw error;
-      }
+      compositeImages.push({
+        input: featheredChunk,
+        left: chunk.x,
+        top: chunk.y,
+        blend: 'over'
+      });
     }
+
+    result = result.composite(compositeImages);
 
     return await result.png().toBuffer();
   }
 
-  private async createFeatheredChunkOptimized(
-    chunkFilePath: string,
-    chunkInfo: ChunkInfo,
-    totalWidth: number,
-    totalHeight: number,
+  private async createFeatheredChunk(
+    chunkBuffer: Buffer, 
+    chunkInfo: ChunkInfo, 
+    totalWidth: number, 
+    totalHeight: number, 
     featherSize: number
   ): Promise<Buffer> {
-    const { data, info } = await sharp(chunkFilePath)
+    const { data, info } = await sharp(chunkBuffer)
       .ensureAlpha()
       .raw()
       .toBuffer({ resolveWithObject: true });
 
     const { width, height, channels } = info;
+    const modifiedData = Buffer.from(data);
 
-    // Process alpha channel in-place
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
-        const idx = (y * width + x) * channels + 3; // Alpha channel
+        const idx = (y * width + x) * channels;
         let alpha = 1.0;
-        if (chunkInfo.x > 0 && x < featherSize) alpha = Math.min(alpha, x / featherSize);
-        if (chunkInfo.y > 0 && y < featherSize) alpha = Math.min(alpha, y / featherSize);
-        if (chunkInfo.x + width < totalWidth && x >= width - featherSize) alpha = Math.min(alpha, (width - x) / featherSize);
-        if (chunkInfo.y + height < totalHeight && y >= height - featherSize) alpha = Math.min(alpha, (height - y) / featherSize);
-        data[idx] = Math.floor(alpha * 255);
+
+        if (chunkInfo.x > 0 && x < featherSize) {
+          alpha = Math.min(alpha, x / featherSize);
+        }
+
+        if (chunkInfo.y > 0 && y < featherSize) {
+          alpha = Math.min(alpha, y / featherSize);
+        }
+
+        if (chunkInfo.x + width < totalWidth && x >= width - featherSize) {
+          alpha = Math.min(alpha, (width - x) / featherSize);
+        }
+
+        if (chunkInfo.y + height < totalHeight && y >= height - featherSize) {
+          alpha = Math.min(alpha, (height - y) / featherSize);
+        }
+
+        modifiedData[idx + 3] = Math.floor(alpha * 255);
       }
     }
 
-    return await sharp(data, {
+    return await sharp(modifiedData, {
       raw: {
         width,
         height,
@@ -913,7 +680,25 @@ app.get('/api/health', (req, res) => {
 
 app.post('/api/load_model', upload.single('file'), async (req, res) => {
   try {
+    // --- CHANGED: Support loading by filename param ---
+    const filename = req.query.filename as string;
+    if (filename) {
+      const modelPath = path.join(UPLOAD_FOLDER, filename);
+      if (!fs.existsSync(modelPath)) {
+        logger.warn(`Requested model file does not exist: ${modelPath}`);
+        return res.status(400).json({ error: 'Model file not found' });
+      }
+      await processor.loadModel(modelPath);
+      return res.json({
+        success: true,
+        model: processor['modelName'],
+        message: `model '${processor['modelName']}' loaded`,
+        model_info: processor['modelInfo']
+      });
+    }
+
     if (!req.file) {
+      logger.warn('No file provided to /api/load_model');
       return res.status(400).json({ error: 'No file provided' });
     }
 
@@ -927,7 +712,7 @@ app.post('/api/load_model', upload.single('file'), async (req, res) => {
       model_info: processor['modelInfo']
     });
   } catch (error) {
-    console.error(`model loading error: ${error}`);
+    logger.error(`model loading error: ${error instanceof Error ? error.message : error}`);
     res.status(500).json({ error: `Failed to load model: ${error instanceof Error ? error.message : 'Unknown error'}` });
   }
 });
@@ -935,10 +720,12 @@ app.post('/api/load_model', upload.single('file'), async (req, res) => {
 app.post('/api/process', imageUpload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
+      logger.warn('No image file provided to /api/process');
       return res.status(400).json({ error: 'No image file provided' });
     }
 
     if (!processor['session']) {
+      logger.warn('No model loaded for /api/process');
       return res.status(400).json({ error: 'No model loaded' });
     }
 
@@ -987,7 +774,7 @@ app.post('/api/process', imageUpload.single('file'), async (req, res) => {
       res.send(processedImage);
     }
   } catch (error) {
-    console.error(`Image processing error: ${error}`);
+    logger.error(`Image processing error: ${error instanceof Error ? error.message : error}`);
     if (req.body.progress === 'true') {
       res.write(`data: ${JSON.stringify({ 
         type: 'error', 
@@ -1013,9 +800,46 @@ app.post('/api/exit', (req, res) => {
   setTimeout(() => process.exit(0), 100);
 });
 
+// List previously imported models
+app.get('/api/list_models', (req, res) => {
+  try {
+    const files = fs.readdirSync(UPLOAD_FOLDER)
+      .filter(f => ALLOWED_EXTENSIONS.has(path.extname(f).toLowerCase()));
+    res.json({ models: files });
+  } catch (err) {
+    logger.error('Failed to list models:', err);
+    res.status(500).json({ error: 'Failed to list models' });
+  }
+});
+
+// --- ADDED: Delete model endpoint ---
+app.post('/api/delete_model', express.json(), (req, res) => {
+  try {
+    const { filename } = req.body;
+    if (!filename || typeof filename !== 'string') {
+      return res.status(400).json({ error: 'missing or invalid filename' });
+    }
+    const modelPath = path.join(UPLOAD_FOLDER, filename);
+    if (!fs.existsSync(modelPath)) {
+      return res.status(404).json({ error: 'model file not found' });
+    }
+    fs.unlinkSync(modelPath);
+    // If the deleted model is currently loaded, unload it
+    if (processor['modelName'] === path.basename(filename, '.onnx')) {
+      processor['session'] = null;
+      processor['modelName'] = null;
+      processor['modelInfo'] = null;
+    }
+    res.json({ success: true });
+  } catch (err) {
+    logger.error('failed to delete model:', err);
+    res.status(500).json({ error: 'failed to delete model' });
+  }
+});
+
 // Error handling middleware
 app.use((err: any, req: any, res: any, next: any) => {
-  console.error(err.stack);
+  logger.error(err.stack || err);
   res.status(500).json({ error: 'Internal server error' });
 });
 

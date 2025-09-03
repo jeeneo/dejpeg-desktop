@@ -1,6 +1,6 @@
 # dejpeg-desktop
 
-beta version of DeJPEG for desktops (an ONNX gui that ISN'T electron)
+beta version of DeJPEG for desktops *only* for FBCNN and SCUNet
 
 prebuilt binaries available under `Releases` or build below
 
@@ -9,12 +9,12 @@ preq:
 nodejs 18 or newer
 
 ```bash
-npm install express cors multer pkg sharp@0.32.6 nodemon @types/express @types/cors @types/multer @types/node onnxruntime-node@latest
+npm install express cors multer pkg sharp@0.32.6 nodemon @types/express @types/cors @types/multer @types/node onnxruntime-node@latest winston
 ```
 
 and
 
-```
+```bash
 npm install typescript -g
 ```
 
@@ -23,8 +23,6 @@ then
 ```bash
 npm run build && npm start
 ```
-
-<!-- then `npm run build` or manually copy `src/static` to `dist` if on windows -->
 
 # building
 

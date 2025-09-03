@@ -19,7 +19,6 @@
 
         <div class="container">
             <aside class="sidebar">
-                <!-- Model Loading Card -->
                 <div class="card slide-in">
                     <div class="card-header">
                         <h2>
@@ -28,11 +27,19 @@
                         </h2>
                     </div>
                     <div class="card-content">
+                        <div style="margin-bottom:0.5rem; display: flex; gap: 0.5rem;">
+                            <select id="modelSelect" class="button secondary" style="width:100%;">
+                                <option value="">-- previous models --</option>
+                            </select>
+                            <button id="deleteModelBtn" class="button danger" title="Delete selected model" style="flex:0 0 auto; min-width:2.5rem; display:flex; align-items:center; justify-content:center;">
+                                <span class="material-icons-round">delete</span>
+                            </button>
+                        </div>
                         <div class="file-input-wrapper">
                             <input type="file" id="modelFile" class="file-input" accept=".onnx">
                             <label for="modelFile" class="file-input-label" id="modelLabel">
                                 <span class="material-icons-round">cloud_upload</span>
-                                choose ONNX model
+                                import ONNX model
                             </label>
                         </div>
                         <button class="button" onclick="loadModel()" id="loadModelBtn">
@@ -104,7 +111,6 @@
                     </div>
                 </div>
 
-                <!-- Result Actions -->
                 <div class="result-actions" id="resultActions" style="display: none;">
                     <input type="text" id="filenameInput" class="filename-input" placeholder="Enter filename">
                     <button id="downloadBtn" class="button success">
@@ -117,7 +123,6 @@
     </div>
 
     <script>
-        // Application State
         const AppState = {
             currentModel: null,
             currentDownloadName: '',
@@ -155,10 +160,11 @@
             resetZoom: document.getElementById('resetZoom'),
             resultActions: document.getElementById('resultActions'),
             filenameInput: document.getElementById('filenameInput'),
-            downloadBtn: document.getElementById('downloadBtn')
+            downloadBtn: document.getElementById('downloadBtn'),
+            modelSelect: document.getElementById('modelSelect'),
+            deleteModelBtn: document.getElementById('deleteModelBtn')
         };
 
-        // Utility Functions
         const showStatus = (elementId, message, type = 'info') => {
             const element = document.getElementById(elementId);
             element.className = `status-indicator ${type}`;
@@ -196,65 +202,99 @@
             }
         };
 
-        // Model Management
         const loadModel = async () => {
-            if (!elements.modelFile.files.length) {
-                showStatus('modelStatus', 'please select a model file first', 'error');
+            const selectedModel = elements.modelSelect.value;
+            const hasFile = elements.modelFile.files.length > 0;
+
+            if (!hasFile && !selectedModel) {
+                showStatus('modelStatus', 'please select a model file or a previous model first', 'error');
                 return;
             }
 
-            const file = elements.modelFile.files[0];
-            const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
-            
-            // Check file size limits
-            if (file.size > 2 * 1024 * 1024 * 1024) { // 2GB
-                showStatus('modelStatus', `model is too large: ${fileSizeMB}MB (max: 2GB)`, 'error');
-                return;
-            }
-
-            showStatus('modelStatus', `loading model (${fileSizeMB}MB)... may take a while.`, 'loading');
             elements.loadModelBtn.disabled = true;
 
-            const formData = new FormData();
-            formData.append('file', file);
+            if (hasFile) {
+                const file = elements.modelFile.files[0];
+                const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
 
-            try {
-                const response = await fetch('/api/load_model', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                const result = await response.json();
-                
-                if (result.error) {
-                    showStatus('modelStatus', result.error, 'error');
-                } else {
-                    AppState.currentModel = result.model;
-                    showStatus('modelStatus', result.message, 'success');
-                    updateProcessButtonState();
-
-                    const sliderSection = document.querySelector('.slider-container');
-                    if (AppState.currentModel.startsWith('fbcnn_')) {
-                        sliderSection.style.display = 'block';
-                    } else {
-                        sliderSection.style.display = 'none';
-                    }
+                // Check file size limits
+                if (file.size > 2 * 1024 * 1024 * 1024) { // 2GB
+                    showStatus('modelStatus', `model is too large: ${fileSizeMB}MB (max: 2GB)`, 'error');
+                    elements.loadModelBtn.disabled = false;
+                    return;
                 }
-            } catch (error) {
-                showStatus('modelStatus', `error loading model: ${error.message}`, 'error');
-            } finally {
-                elements.loadModelBtn.disabled = false;
+
+                showStatus('modelStatus', `loading model (${fileSizeMB}MB)... may take a while.`, 'loading');
+
+                const formData = new FormData();
+                formData.append('file', file);
+
+                try {
+                    const response = await fetch('/api/load_model', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const result = await response.json();
+
+                    if (result.error) {
+                        showStatus('modelStatus', result.error, 'error');
+                    } else {
+                        AppState.currentModel = result.model;
+                        showStatus('modelStatus', result.message, 'success');
+                        updateProcessButtonState();
+
+                        const sliderSection = document.querySelector('.slider-container');
+                        if (AppState.currentModel.startsWith('fbcnn_')) {
+                            sliderSection.style.display = 'block';
+                        } else {
+                            sliderSection.style.display = 'none';
+                        }
+
+                        await populateModelSelect(); // refresh dropdown
+                    }
+                } catch (error) {
+                    showStatus('modelStatus', `error loading model: ${error.message}`, 'error');
+                } finally {
+                    elements.loadModelBtn.disabled = false;
+                }
+            } else if (selectedModel) {
+                // --- NEW: Load model by filename (no file upload) ---
+                showStatus('modelStatus', `loading model '${selectedModel}'...`, 'loading');
+                try {
+                    const response = await fetch('/api/load_model?filename=' + encodeURIComponent(selectedModel), {
+                        method: 'POST'
+                    });
+                    const result = await response.json();
+
+                    if (result.error) {
+                        showStatus('modelStatus', result.error, 'error');
+                    } else {
+                        AppState.currentModel = result.model;
+                        showStatus('modelStatus', result.message, 'success');
+                        updateProcessButtonState();
+
+                        const sliderSection = document.querySelector('.slider-container');
+                        if (AppState.currentModel.startsWith('fbcnn_')) {
+                            sliderSection.style.display = 'block';
+                        } else {
+                            sliderSection.style.display = 'none';
+                        }
+                    }
+                } catch (error) {
+                    showStatus('modelStatus', `error loading model: ${error.message}`, 'error');
+                } finally {
+                    elements.loadModelBtn.disabled = false;
+                }
             }
         };
 
-        // Image Processing
         const processImage = async () => {
             if (!elements.imageFile.files.length || !AppState.currentModel) return;
 
             AppState.abortController = new AbortController();
             AppState.jobId = null;
 
-            // Show processing state
             elements.beforeImage.style.display = 'none';
             elements.afterImage.style.display = 'none';
             elements.comparisonSlider.style.display = 'none';
@@ -270,7 +310,6 @@
             } else {
                 fileSize = (file.size / (1024 * 1024)).toFixed(1) + 'MB';
             }            
-            // Show processing indicator
             elements.placeholderContent.innerHTML = `
                 <div class="status-indicator loading" style="display: inline-flex; margin: 0; background: rgba(189, 189, 189, 0.08); border: 1px solid rgba(189, 189, 189, 0.18);">
                     <div class="spinner"></div>
@@ -295,7 +334,6 @@
                     signal: AppState.abortController.signal
                 });
 
-                // Get jobId from header if present
                 const jobId = response.headers.get('X-Job-Id');
                 if (jobId) AppState.jobId = jobId;
 
@@ -304,8 +342,7 @@
                     AppState.currentProcessedImageUrl = URL.createObjectURL(blob);
                     const originalUrl = URL.createObjectURL(file);
                     await displayComparison(originalUrl, AppState.currentProcessedImageUrl);
-                    
-                    // Update download filename - always use .png
+
                     const originalName = file.name;
                     const baseName = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
                     AppState.currentDownloadName = `${baseName}_${AppState.currentModel}.png`;
@@ -332,7 +369,6 @@
             }
         };
 
-        // Image Comparison Display
         const displayComparison = async (beforeUrl, afterUrl) => {
             return new Promise((resolve) => {
                 let loadedCount = 0;
@@ -362,12 +398,10 @@
             elements.afterLabel.style.display = 'block';
             elements.zoomControls.style.display = 'flex';
             
-            // Reset slider position to center with after on left, before on right
             elements.comparisonSlider.style.left = '50%';
             elements.afterImage.style.clipPath = 'inset(0 0 0 50%)';
         };
 
-        // --- ADDED: Show zoom controls and enable pan/zoom for before image preview ---
         const showBeforeImagePreview = () => {
             elements.beforeImage.style.display = 'block';
             elements.afterImage.style.display = 'none';
@@ -383,20 +417,12 @@
         const updateSliderPosition = (clientX) => {
             const rect = elements.comparisonContainer.getBoundingClientRect();
             const containerX = clientX - rect.left;
-            
-            // Calculate percentage based on container coordinates
             const containerPercent = Math.min(Math.max((containerX / rect.width) * 100, 0), 100);
-            
-            // Update slider position
             elements.comparisonSlider.style.left = `${containerPercent}%`;
-            
-            // Calculate image position accounting for zoom/pan
             const imgRect = elements.beforeImage.getBoundingClientRect();
             const imgX = (clientX - imgRect.left) / AppState.zoomLevel;
             const imgWidth = imgRect.width / AppState.zoomLevel;
-            const percent = Math.min(Math.max((imgX / imgWidth) * 100, 0), 100);
-            
-            // Show after image on left side of slider
+            const percent = Math.min(Math.max((imgX / imgWidth) * 100, 0), 100);            
             elements.afterImage.style.clipPath = `inset(0 0 0 ${percent}%)`;
         };
 
@@ -411,14 +437,13 @@
             elements.beforeImage.style.transform = transform;
             elements.afterImage.style.transform = transform;
             
-            // Always update slider position to maintain relative position, even while dragging
             if (elements.comparisonSlider.style.display !== 'none') {
                 const rect = elements.comparisonContainer.getBoundingClientRect();
                 const currentLeft = elements.comparisonSlider.style.left;
                 let currentPercent;
                 
                 if (currentLeft === '' || currentLeft === undefined) {
-                    currentPercent = 50; // Default to center only if no position is set
+                    currentPercent = 50;
                 } else {
                     currentPercent = parseFloat(currentLeft);
                     if (isNaN(currentPercent)) {
@@ -447,7 +472,70 @@
             elements.processBtn.disabled = !hasModel || !hasImage;
         };
 
-        // Event Listeners
+        async function populateModelSelect() {
+            try {
+                const res = await fetch('/api/list_models');
+                const data = await res.json();
+                const select = elements.modelSelect;
+                select.options.length = 1;
+                if (data.models && Array.isArray(data.models)) {
+                    data.models.forEach(model => {
+                        const opt = document.createElement('option');
+                        opt.value = model;
+                        opt.textContent = model;
+                        select.appendChild(opt);
+                    });
+                }
+            } catch (e) {
+            }
+        }
+
+        elements.modelSelect.addEventListener('change', async (e) => {
+            const selected = e.target.value;
+            if (!selected) return;
+            AppState.currentModel = selected.replace(/\.onnx$/i, '');
+            showStatus('modelStatus', `model '${AppState.currentModel}' selected`, 'success');
+            updateProcessButtonState();
+            const sliderSection = document.querySelector('.slider-container');
+            if (AppState.currentModel.startsWith('fbcnn_')) {
+                sliderSection.style.display = 'block';
+            } else {
+                sliderSection.style.display = 'none';
+            }
+        });
+
+        elements.deleteModelBtn.addEventListener('click', async () => {
+            const selectedModel = elements.modelSelect.value;
+            if (!selectedModel) {
+                showStatus('modelStatus', 'No model selected to delete', 'error');
+                return;
+            }
+            if (!confirm(`Delete model "${selectedModel}"? This cannot be undone.`)) return;
+            elements.deleteModelBtn.disabled = true;
+            showStatus('modelStatus', `Deleting model "${selectedModel}"...`, 'loading');
+            try {
+                const res = await fetch('/api/delete_model', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename: selectedModel })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showStatus('modelStatus', `model "${selectedModel}" deleted`, 'success');
+                    await populateModelSelect();
+                    elements.modelSelect.value = '';
+                    AppState.currentModel = null;
+                    updateProcessButtonState();
+                    document.querySelector('.slider-container').style.display = 'none';
+                } else {
+                    showStatus('modelStatus', data.error || 'Failed to delete model', 'error');
+                }
+            } catch (e) {
+                showStatus('modelStatus', `Error deleting model: ${e.message}`, 'error');
+            } finally {
+                elements.deleteModelBtn.disabled = false;
+            }
+        });
         elements.modelFile.addEventListener('change', (e) => {
             const fileName = e.target.files[0]?.name || '';
             updateFileLabel(elements.modelLabel, fileName, !!fileName);
@@ -457,7 +545,7 @@
         elements.imageFile.addEventListener('change', (e) => {
             if (AppState.abortController && AppState.abortController.signal.aborted === false) {
                 showStatus('processingIndicator', 'Please wait for current processing to complete or cancel it first', 'error');
-                e.target.value = ''; // Clear the file input
+                e.target.value = '';
                 return;
             }
 
@@ -466,10 +554,8 @@
             updateProcessButtonState();
 
             if (e.target.files.length) {
-                // Show preview of selected image
                 const url = URL.createObjectURL(e.target.files[0]);
                 elements.beforeImage.src = url;
-                // --- CHANGED: Use new function to show preview with pan/zoom enabled ---
                 showBeforeImagePreview();
             }
         });
@@ -477,22 +563,19 @@
         elements.strength.addEventListener('input', (e) => {
             elements.strengthValue.textContent = `${e.target.value}%`;
         });
-
-        // Comparison slider events
         elements.comparisonContainer.addEventListener('mousedown', (e) => {
             if (elements.beforeImage.style.display === 'none') return;
 
-            // Only handle slider if clicking near it and slider is visible
             const sliderRect = elements.comparisonSlider.getBoundingClientRect();
             const isSliderVisible = elements.comparisonSlider.style.display !== 'none';
             const isNearSlider = isSliderVisible && Math.abs(e.clientX - sliderRect.left) < 20;
 
-            if (e.button === 0 && isNearSlider) { // Left click near slider
+            if (e.button === 0 && isNearSlider) {
                 AppState.isDragging = true;
                 updateSliderPosition(e.clientX);
                 e.preventDefault();
                 e.stopPropagation();
-            } else if (e.button === 0) { // Left click anywhere else for panning
+            } else if (e.button === 0) {
                 AppState.lastPanPoint = { x: e.clientX, y: e.clientY };
                 elements.comparisonContainer.style.cursor = 'grabbing';
                 e.preventDefault();
@@ -504,7 +587,6 @@
                 updateSliderPosition(e.clientX);
                 e.preventDefault();
             } else if (AppState.lastPanPoint.x !== 0) {
-                // Handle panning
                 const deltaX = e.clientX - AppState.lastPanPoint.x;
                 const deltaY = e.clientY - AppState.lastPanPoint.y;
                 
@@ -526,12 +608,10 @@
             }
         });
 
-        // Zoom controls
         elements.zoomIn.addEventListener('click', zoomIn);
         elements.zoomOut.addEventListener('click', zoomOut);
         elements.resetZoom.addEventListener('click', resetZoomAndPan);
 
-        // Mouse wheel zoom
         elements.comparisonContainer.addEventListener('wheel', (e) => {
             if (elements.beforeImage.style.display === 'none') return;
             
@@ -548,9 +628,7 @@
             updateImageTransform();
         });
 
-        // Pan functionality
         elements.comparisonContainer.addEventListener('mousedown', (e) => {
-            // --- CHANGED: Allow panning if beforeImage is visible, regardless of afterImage ---
             if (e.button !== 1 && !e.ctrlKey && !e.shiftKey) return;
             if (elements.beforeImage.style.display === 'none') return;
             
@@ -564,7 +642,6 @@
                 updateSliderPosition(e.clientX);
                 e.preventDefault();
             } else if (AppState.lastPanPoint.x !== 0) {
-                // Handle panning
                 const deltaX = e.clientX - AppState.lastPanPoint.x;
                 const deltaY = e.clientY - AppState.lastPanPoint.y;
                 
@@ -584,15 +661,11 @@
                 elements.comparisonContainer.style.cursor = 'default';
             }
         });
-
-        // Download functionality
         elements.downloadBtn.addEventListener('click', () => {
             if (!AppState.currentProcessedImageUrl) return;
             
             let filename = elements.filenameInput.value.trim();
             if (!filename) filename = AppState.currentDownloadName;
-            
-            // Ensure filename ends with .png
             if (!filename.toLowerCase().endsWith('.png')) {
                 filename += '.png';
             }
@@ -604,8 +677,6 @@
             a.click();
             document.body.removeChild(a);
         });
-
-        // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
             if (elements.beforeImage.style.display === 'none') return;
             
@@ -632,7 +703,6 @@
                 const exitBtn = document.getElementById('exitBtn');
                 exitBtn.disabled = true;
                 
-                // Set a fixed width to prevent layout shift
                 exitBtn.style.width = exitBtn.offsetWidth + 'px';
                 exitBtn.innerHTML = '<span class="material-icons-round">logout</span>...';
                 
@@ -641,18 +711,15 @@
             });
         // }
 
-        // Initialize
         updateProcessButtonState();
-        
-        // Add some nice loading animations
+
         document.addEventListener('DOMContentLoaded', () => {
             const cards = document.querySelectorAll('.card');
             cards.forEach((card, index) => {
                 card.style.animationDelay = `${index * 0.1}s`;
             });
-            
-            // Initialize strength value display
             elements.strengthValue.textContent = `${elements.strength.value}%`;
+            populateModelSelect();
         });
     </script>
 </body>
